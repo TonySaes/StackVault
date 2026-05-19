@@ -1,0 +1,12 @@
+{
+  "name": "@stackvault/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "lint": "echo \"No web lint configured yet\"",
+    "typecheck": "echo \"No web typecheck configured yet\"",
+    "test": "echo \"No web tests configured yet\"",
+    "build": "echo \"No web build configured yet\""
+  }
+}

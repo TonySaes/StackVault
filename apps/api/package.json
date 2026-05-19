@@ -1,0 +1,12 @@
+{
+  "name": "@stackvault/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "lint": "echo \"No api lint configured yet\"",
+    "typecheck": "echo \"No api typecheck configured yet\"",
+    "test": "echo \"No api tests configured yet\"",
+    "build": "echo \"No api build configured yet\""
+  }
+}
