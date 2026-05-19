@@ -16,7 +16,7 @@ npm install
 ```text
 .
 ├── apps/
-│   ├── api/   # Backend NestJS, initialise dans une story dediee
+│   ├── api/   # Backend NestJS minimal
 │   └── web/   # Frontend React/Vite, initialise dans une story dediee
 ├── docs/      # Documentation projet 
 └── package.json
@@ -33,13 +33,28 @@ npm test
 npm run build
 ```
 
-Ces commandes existent des le socle du projet. Tant que les applications ne sont pas initialisees, elles executent des controles temporaires sans logique metier.
+Ces commandes existent des le socle du projet. Les scripts encore temporaires indiquent explicitement les zones non initialisees.
+
+## API locale
+
+L'API NestJS vit dans `apps/api`.
+
+```bash
+npm run -w apps/api dev
+```
+
+Par defaut, l'API ecoute `127.0.0.1:3000`.
+
+```text
+GET http://127.0.0.1:3000/api/v1/health
+```
+
+La variable `PORT` permet de changer le port. La variable `HOST` permet de changer l'adresse d'ecoute, par exemple `0.0.0.0` dans un environnement de deploiement.
 
 ## Frontieres actuelles
 
 Cette initialisation ne contient pas encore:
 
-- API NestJS;
 - frontend React/Vite;
 - base PostgreSQL ou Prisma;
 - authentification;

@@ -5,8 +5,25 @@
   "type": "module",
   "scripts": {
     "lint": "echo \"No api lint configured yet\"",
-    "typecheck": "echo \"No api typecheck configured yet\"",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "echo \"No api tests configured yet\"",
-    "build": "echo \"No api build configured yet\""
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsx src/main.ts",
+    "start": "node dist/main.js"
+  },
+  "dependencies": {
+    "@nestjs/common": "^11.1.21",
+    "@nestjs/core": "^11.1.21",
+    "@nestjs/platform-express": "^11.1.21",
+    "@nestjs/swagger": "^11.4.3",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.15.1",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.1",
+    "tsx": "^4.22.3",
+    "typescript": "^6.0.3"
   }
 }
