@@ -1,17 +1,19 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, ServiceUnavailableException } from '@nestjs/common';
 
-interface HealthResponse {
-  status: 'ok';
-  service: 'stackvault-api';
-}
+import { HealthResponse, HealthService } from './health.service.js';
 
 @Controller('health')
 export class HealthController {
+  constructor(private readonly healthService: HealthService) {}
+
   @Get()
-  getHealth(): HealthResponse {
-    return {
-      status: 'ok',
-      service: 'stackvault-api',
-    };
+  async getHealth(): Promise<HealthResponse> {
+    const health = await this.healthService.getHealth();
+
+    if (health.status === 'degraded') {
+      throw new ServiceUnavailableException(health);
+    }
+
+    return health;
   }
 }

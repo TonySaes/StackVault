@@ -9,20 +9,27 @@
     "test": "echo \"No api tests configured yet\"",
     "build": "tsc -p tsconfig.build.json",
     "dev": "tsx src/main.ts",
-    "start": "node dist/main.js"
+    "start": "node dist/main.js",
+    "prisma:generate": "prisma generate --schema prisma/schema.prisma",
+    "prisma:db:push": "prisma db push --schema prisma/schema.prisma"
   },
   "dependencies": {
     "@nestjs/common": "^11.1.21",
     "@nestjs/core": "^11.1.21",
     "@nestjs/platform-express": "^11.1.21",
     "@nestjs/swagger": "^11.4.3",
+    "@prisma/client": "^6.19.3",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
+    "dotenv": "^16.6.1",
+    "pg": "^8.21.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2"
   },
   "devDependencies": {
     "@types/node": "^25.9.1",
+    "@types/pg": "^8.20.0",
+    "prisma": "^6.19.3",
     "tsx": "^4.22.3",
     "typescript": "^6.0.3"
   }

@@ -1,10 +1,16 @@
 import 'reflect-metadata';
 
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { config } from 'dotenv';
 
 import { AppModule } from './app.module.js';
+
+const currentDir = dirname(fileURLToPath(import.meta.url));
+config({ path: resolve(currentDir, '../.env') });
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
