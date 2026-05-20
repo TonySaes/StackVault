@@ -93,6 +93,17 @@ const demoResources = [
     categorySlug: 'security',
     technologySlug: 'nodejs',
   },
+  {
+    title: 'PostgreSQL adoption keeps growing in modern application stacks',
+    sourceUrl: 'https://www.postgresql.org/about/news/',
+    canonicalUrl: 'https://www.postgresql.org/about/news/postgresql-adoption-trend',
+    publishedAt: new Date('2025-05-01T00:00:00.000Z'),
+    shortSummary:
+      'PostgreSQL remains a strong default choice for relational data in modern developer stacks and managed platforms.',
+    sourceUrlKey: 'https://www.postgresql.org/about/news/',
+    categorySlug: 'trend',
+    technologySlug: 'postgresql',
+  },
 ];
 
 async function main() {
