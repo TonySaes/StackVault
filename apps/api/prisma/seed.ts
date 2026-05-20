@@ -43,6 +43,33 @@ const demoTechnologies = [
   },
 ];
 
+const demoSources = [
+  {
+    name: 'React Blog',
+    url: 'https://react.dev/blog',
+    type: 'public_metadata',
+    status: 'active',
+  },
+  {
+    name: 'Node.js Blog',
+    url: 'https://nodejs.org/en/blog',
+    type: 'public_metadata',
+    status: 'active',
+  },
+  {
+    name: 'PostgreSQL News',
+    url: 'https://www.postgresql.org/about/news/',
+    type: 'public_metadata',
+    status: 'active',
+  },
+  {
+    name: 'Prisma Blog',
+    url: 'https://www.prisma.io/blog',
+    type: 'public_metadata',
+    status: 'active',
+  },
+];
+
 async function main() {
   for (const category of demoCategories) {
     await prisma.category.upsert({
@@ -70,8 +97,22 @@ async function main() {
     });
   }
 
+  for (const source of demoSources) {
+    await prisma.source.upsert({
+      where: {
+        url: source.url,
+      },
+      update: {
+        name: source.name,
+        type: source.type,
+        status: source.status,
+      },
+      create: source,
+    });
+  }
+
   console.log(
-    `Seeded ${demoCategories.length} categories and ${demoTechnologies.length} technologies.`,
+    `Seeded ${demoCategories.length} categories, ${demoTechnologies.length} technologies and ${demoSources.length} sources.`,
   );
 }
 
