@@ -1,7 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 
 import { PrismaService } from '../../database/prisma.service.js';
-import { ListResourcesQueryDto } from './dto/list-resources-query.dto.js';
+import {
+  ListResourcesQueryDto,
+  normalizeListResourcesQuery,
+} from './dto/list-resources-query.dto.js';
 
 interface PublicResourceSource {
   id: string;
@@ -49,12 +52,15 @@ export interface PaginatedResourcesResponse {
 
 @Injectable()
 export class ResourcesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    @Inject(PrismaService)
+    private readonly prisma: PrismaService,
+  ) {}
 
   async listResources(
     query: ListResourcesQueryDto,
   ): Promise<PaginatedResourcesResponse> {
-    const { page, pageSize } = query;
+    const { page, pageSize } = normalizeListResourcesQuery(query);
     const skip = (page - 1) * pageSize;
 
     const [resources, total] = await this.prisma.$transaction([

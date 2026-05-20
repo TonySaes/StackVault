@@ -19,3 +19,26 @@ export class ListResourcesQueryDto {
   @Max(MAX_RESOURCES_PAGE_SIZE)
   pageSize = DEFAULT_RESOURCES_PAGE_SIZE;
 }
+
+function normalizePositiveInteger(value: unknown, fallback: number): number {
+  const parsedValue = Number(value ?? fallback);
+
+  if (!Number.isInteger(parsedValue) || parsedValue < 1) {
+    return fallback;
+  }
+
+  return parsedValue;
+}
+
+export function normalizeListResourcesQuery(query: ListResourcesQueryDto) {
+  const page = normalizePositiveInteger(query.page, DEFAULT_RESOURCES_PAGE);
+  const requestedPageSize = normalizePositiveInteger(
+    query.pageSize,
+    DEFAULT_RESOURCES_PAGE_SIZE,
+  );
+
+  return {
+    page,
+    pageSize: Math.min(requestedPageSize, MAX_RESOURCES_PAGE_SIZE),
+  };
+}

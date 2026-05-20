@@ -1,4 +1,4 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Inject, Query } from '@nestjs/common';
 
 import { ListResourcesQueryDto } from './dto/list-resources-query.dto.js';
 import {
@@ -8,7 +8,10 @@ import {
 
 @Controller('resources')
 export class ResourcesController {
-  constructor(private readonly resourcesService: ResourcesService) {}
+  constructor(
+    @Inject(ResourcesService)
+    private readonly resourcesService: ResourcesService,
+  ) {}
 
   @Get()
   async listResources(
