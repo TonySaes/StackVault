@@ -20,6 +20,29 @@ const demoCategories = [
   },
 ];
 
+const demoTechnologies = [
+  {
+    name: 'React',
+    slug: 'react',
+    status: 'active',
+  },
+  {
+    name: 'Node.js',
+    slug: 'nodejs',
+    status: 'active',
+  },
+  {
+    name: 'PostgreSQL',
+    slug: 'postgresql',
+    status: 'active',
+  },
+  {
+    name: 'Prisma',
+    slug: 'prisma',
+    status: 'active',
+  },
+];
+
 async function main() {
   for (const category of demoCategories) {
     await prisma.category.upsert({
@@ -34,7 +57,22 @@ async function main() {
     });
   }
 
-  console.log(`Seeded ${demoCategories.length} categories.`);
+  for (const technology of demoTechnologies) {
+    await prisma.technology.upsert({
+      where: {
+        slug: technology.slug,
+      },
+      update: {
+        name: technology.name,
+        status: technology.status,
+      },
+      create: technology,
+    });
+  }
+
+  console.log(
+    `Seeded ${demoCategories.length} categories and ${demoTechnologies.length} technologies.`,
+  );
 }
 
 main()
