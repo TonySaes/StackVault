@@ -6,3 +6,85 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+model Source {
+  id              String     @id @default(uuid()) @db.Uuid
+  name            String     @db.VarChar(160)
+  url             String     @unique
+  type            String
+  status          String     @default("active")
+  lastIngestionAt DateTime?  @map("last_ingestion_at") @db.Timestamptz(6)
+  lastCheckedAt   DateTime?  @map("last_checked_at") @db.Timestamptz(6)
+  createdAt       DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  resources       Resource[]
+
+  @@index([status], map: "idx_sources_status")
+  @@map("sources")
+}
+
+model Category {
+  id         String     @id @default(uuid()) @db.Uuid
+  name       String     @db.VarChar(120)
+  slug       String     @unique @db.VarChar(120)
+  signalType String     @map("signal_type")
+  createdAt  DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  resources  Resource[]
+
+  @@map("categories")
+}
+
+model Technology {
+  id            String               @id @default(uuid()) @db.Uuid
+  name          String               @db.VarChar(120)
+  slug          String               @unique @db.VarChar(120)
+  status        String               @default("active")
+  createdAt     DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
+  resourceLinks ResourceTechnology[]
+
+  @@index([status], map: "idx_technologies_status")
+  @@map("technologies")
+}
+
+model Resource {
+  id                  String               @id @default(uuid()) @db.Uuid
+  sourceId            String               @map("source_id") @db.Uuid
+  categoryId          String               @map("category_id") @db.Uuid
+  title               String               @db.VarChar(240)
+  sourceUrl           String               @map("source_url")
+  canonicalUrl        String               @unique @map("canonical_url")
+  publishedAt         DateTime?            @map("published_at") @db.Timestamptz(6)
+  detectedAt          DateTime             @default(now()) @map("detected_at") @db.Timestamptz(6)
+  shortSummary        String?              @map("short_summary")
+  lifecycleStatus     String               @default("active") @map("lifecycle_status")
+  linkStatus          String               @default("unknown") @map("link_status")
+  lastLinkCheckAt     DateTime?            @map("last_link_check_at") @db.Timestamptz(6)
+  retentionEligibleAt DateTime?            @map("retention_eligible_at") @db.Timestamptz(6)
+  createdAt           DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
+  source              Source               @relation(fields: [sourceId], references: [id])
+  category            Category             @relation(fields: [categoryId], references: [id])
+  technologyLinks     ResourceTechnology[]
+
+  @@index([sourceId], map: "idx_resources_source_id")
+  @@index([categoryId], map: "idx_resources_category_id")
+  @@index([publishedAt], map: "idx_resources_published_at")
+  @@index([detectedAt], map: "idx_resources_detected_at")
+  @@index([linkStatus], map: "idx_resources_link_status")
+  @@index([lifecycleStatus], map: "idx_resources_lifecycle_status")
+  @@map("resources")
+}
+
+model ResourceTechnology {
+  resourceId   String     @map("resource_id") @db.Uuid
+  technologyId String     @map("technology_id") @db.Uuid
+  createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  resource     Resource   @relation(fields: [resourceId], references: [id])
+  technology   Technology @relation(fields: [technologyId], references: [id])
+
+  @@id([resourceId, technologyId])
+  @@index([technologyId], map: "idx_resource_technologies_technology_id")
+  @@map("resource_technologies")
+}
