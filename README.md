@@ -17,12 +17,12 @@ npm install
 .
 ├── apps/
 │   ├── api/   # Backend NestJS minimal
-│   └── web/   # Frontend React/Vite, initialise dans une story dediee
+│   └── web/   # Frontend React/Vite minimal
 ├── docs/      # Documentation projet 
 └── package.json
 ```
 
-Les dossiers `apps/api` et `apps/web` sont volontairement minimaux pour l'instant. Ils existent pour poser le workspace; les starters NestJS et React/Vite seront ajoutes par les prochaines stories.
+Les dossiers `apps/api` et `apps/web` contiennent les socles minimaux backend et frontend. Les fonctionnalites metier seront ajoutees par increments dedies.
 
 ## Commandes
 
@@ -51,11 +51,24 @@ GET http://127.0.0.1:3000/api/v1/health
 
 La variable `PORT` permet de changer le port. La variable `HOST` permet de changer l'adresse d'ecoute, par exemple `0.0.0.0` dans un environnement de deploiement.
 
+## Frontend local
+
+Le frontend React/Vite vit dans `apps/web`.
+
+```bash
+npm run -w apps/web dev
+```
+
+Par defaut, Vite sert l'application sur:
+
+```text
+http://127.0.0.1:5173/
+```
+
 ## Frontieres actuelles
 
 Cette initialisation ne contient pas encore:
 
-- frontend React/Vite;
 - base PostgreSQL ou Prisma;
 - authentification;
 - dashboard public;

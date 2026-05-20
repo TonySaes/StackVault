@@ -5,8 +5,20 @@
   "type": "module",
   "scripts": {
     "lint": "echo \"No web lint configured yet\"",
-    "typecheck": "echo \"No web typecheck configured yet\"",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "echo \"No web tests configured yet\"",
-    "build": "echo \"No web build configured yet\""
+    "build": "tsc -p tsconfig.json && vite build",
+    "dev": "vite --host 127.0.0.1"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "^6.0.2",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "vite": "^8.0.13"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.15",
+    "@types/react-dom": "^19.2.3",
+    "typescript": "^6.0.3"
   }
 }
