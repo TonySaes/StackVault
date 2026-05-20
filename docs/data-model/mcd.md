@@ -360,10 +360,10 @@ Notation : `A (min,max) -- relation -- (min,max) B`.
 - Le MVP affichera au plus un resume courant par ressource.
 - Le MLD devra prevoir une maniere de distinguer le resume courant : champ `is_current`, `superseded_at`, contrainte partielle PostgreSQL ou autre strategie documentee.
 
-## Points a trancher au MLD
+## Decisions prises au MLD
 
-- Types PostgreSQL exacts des statuts : enums Prisma mappes en texte, enums PostgreSQL ou checks.
-- Strategie exacte pour `deleted_at` utilisateur : soft delete, hard delete ou combinaison.
-- Unicite du nom de collection : sensible ou insensible a la casse.
-- Strategie MLD pour garantir au plus un resume IA courant par ressource.
-- Niveau de normalisation des statuts de lien et de source avant l'admin avancee.
+- Les statuts sont modelises comme `text` avec valeurs autorisees documentees. Prisma pourra les representer par des enums applicatifs si cela reste plus lisible cote TypeScript.
+- `deleted_at` est conserve sur `users` pour representer une suppression ou anonymisation sans casser immediatement les relations. La strategie exacte sera precisee dans les stories auth/suppression de compte.
+- L'unicite des collections utilisateur repose sur `normalized_name`, afin d'eviter les doublons differant seulement par casse ou espaces.
+- `ai_summaries` garde un historique possible, avec un seul resume courant par ressource via `is_current` et une contrainte unique partielle PostgreSQL recommandee.
+- Les statuts de lien, source, cycle de vie, ingestion et resume IA restent normalises par valeurs documentees avant une eventuelle normalisation en tables dediees post-MVP.
