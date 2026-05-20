@@ -6,12 +6,13 @@
   "scripts": {
     "lint": "echo \"No api lint configured yet\"",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "echo \"No api tests configured yet\"",
+    "test": "tsx --test \"src/**/*.spec.ts\"",
     "build": "tsc -p tsconfig.build.json",
     "dev": "tsx src/main.ts",
     "start": "node dist/main.js",
     "prisma:generate": "prisma generate --schema prisma/schema.prisma",
-    "prisma:db:push": "prisma db push --schema prisma/schema.prisma"
+    "prisma:db:push": "prisma db push --schema prisma/schema.prisma",
+    "prisma:seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.1.21",
