@@ -70,6 +70,18 @@ const demoSources = [
   },
 ];
 
+const firstDemoResource = {
+  title: 'React Compiler release candidate',
+  sourceUrl: 'https://react.dev/blog/2025/04/21/react-compiler-rc',
+  canonicalUrl: 'https://react.dev/blog/2025/04/21/react-compiler-rc',
+  publishedAt: new Date('2025-04-21T00:00:00.000Z'),
+  shortSummary:
+    'React Compiler reaches release candidate status and prepares automatic optimizations for React applications.',
+  sourceUrlKey: 'https://react.dev/blog',
+  categorySlug: 'release',
+  technologySlug: 'react',
+};
+
 async function main() {
   for (const category of demoCategories) {
     await prisma.category.upsert({
@@ -111,8 +123,65 @@ async function main() {
     });
   }
 
+  const source = await prisma.source.findUniqueOrThrow({
+    where: {
+      url: firstDemoResource.sourceUrlKey,
+    },
+  });
+  const category = await prisma.category.findUniqueOrThrow({
+    where: {
+      slug: firstDemoResource.categorySlug,
+    },
+  });
+  const technology = await prisma.technology.findUniqueOrThrow({
+    where: {
+      slug: firstDemoResource.technologySlug,
+    },
+  });
+
+  const resource = await prisma.resource.upsert({
+    where: {
+      canonicalUrl: firstDemoResource.canonicalUrl,
+    },
+    update: {
+      sourceId: source.id,
+      categoryId: category.id,
+      title: firstDemoResource.title,
+      sourceUrl: firstDemoResource.sourceUrl,
+      publishedAt: firstDemoResource.publishedAt,
+      shortSummary: firstDemoResource.shortSummary,
+      lifecycleStatus: 'active',
+      linkStatus: 'unknown',
+    },
+    create: {
+      sourceId: source.id,
+      categoryId: category.id,
+      title: firstDemoResource.title,
+      sourceUrl: firstDemoResource.sourceUrl,
+      canonicalUrl: firstDemoResource.canonicalUrl,
+      publishedAt: firstDemoResource.publishedAt,
+      shortSummary: firstDemoResource.shortSummary,
+      lifecycleStatus: 'active',
+      linkStatus: 'unknown',
+    },
+  });
+
+  await prisma.resourceTechnology.upsert({
+    where: {
+      resourceId_technologyId: {
+        resourceId: resource.id,
+        technologyId: technology.id,
+      },
+    },
+    update: {},
+    create: {
+      resourceId: resource.id,
+      technologyId: technology.id,
+    },
+  });
+
   console.log(
-    `Seeded ${demoCategories.length} categories, ${demoTechnologies.length} technologies and ${demoSources.length} sources.`,
+    `Seeded ${demoCategories.length} categories, ${demoTechnologies.length} technologies, ${demoSources.length} sources and 1 resource.`,
   );
 }
 
