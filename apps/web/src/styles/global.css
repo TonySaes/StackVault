@@ -125,3 +125,25 @@ h2 {
   font-size: 0.875rem;
   font-weight: 700;
 }
+
+.resource-source-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin-top: 16px;
+  color: #f0f6fc;
+  font-size: 0.875rem;
+  font-weight: 700;
+  text-decoration-color: #7dd3fc;
+  text-underline-offset: 4px;
+}
+
+.resource-source-link:hover {
+  color: #7dd3fc;
+}
+
+.resource-source-link:focus-visible {
+  outline: 2px solid #7dd3fc;
+  outline-offset: 4px;
+  border-radius: 4px;
+}

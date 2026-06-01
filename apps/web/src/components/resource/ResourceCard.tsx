@@ -32,6 +32,14 @@ export function ResourceCard({ resource }: ResourceCardProps) {
       <p className="resource-technologies">
         {resource.technologies.map((technology) => technology.name).join(', ')}
       </p>
+      <a
+        className="resource-source-link"
+        href={resource.sourceUrl}
+        target="_blank"
+        rel="noreferrer"
+      >
+        Lire la source officielle
+      </a>
     </article>
   );
 }
