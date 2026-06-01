@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 
+import { ResourceCard } from '../components/resource/ResourceCard';
 import {
   fetchResources,
-  type PublicResource,
   type PaginatedResourcesResponse,
 } from '../api/resources-api';
 
@@ -14,19 +14,6 @@ type ResourceFeedState =
   | { status: 'success'; data: PaginatedResourcesResponse }
   | { status: 'empty' }
   | { status: 'error' };
-
-// Display helpers
-// API dates arrive as ISO strings. Formatting stays at the UI boundary so the
-// API client can keep returning the raw JSON contract.
-function formatResourceDate(resource: PublicResource) {
-  const dateValue = resource.publishedAt ?? resource.detectedAt;
-
-  return new Intl.DateTimeFormat('fr-FR', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  }).format(new Date(dateValue));
-}
 
 export function DashboardRoute() {
   const [resourceFeed, setResourceFeed] = useState<ResourceFeedState>({
@@ -103,20 +90,7 @@ export function DashboardRoute() {
           <ul className="resource-list" aria-label="Ressources de veille">
             {resourceFeed.data.items.map((resource) => (
               <li className="resource-item" key={resource.id}>
-                <article>
-                  <div className="resource-meta">
-                    <span>{resource.category.name}</span>
-                    <span>{resource.source.name}</span>
-                    <time dateTime={resource.publishedAt ?? resource.detectedAt}>
-                      {formatResourceDate(resource)}
-                    </time>
-                  </div>
-                  <h3>{resource.title}</h3>
-                  <p>{resource.shortSummary ?? 'Resume indisponible pour le moment.'}</p>
-                  <p className="resource-technologies">
-                    {resource.technologies.map((technology) => technology.name).join(', ')}
-                  </p>
-                </article>
+                <ResourceCard resource={resource} />
               </li>
             ))}
           </ul>
