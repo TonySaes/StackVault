@@ -6,12 +6,18 @@ import {
   type PaginatedResourcesResponse,
 } from '../api/resources-api';
 
+// Resource feed state machine
+// One status owns the valid shape of the data. For example, data only exists
+// when status is "success", which avoids inconsistent loading/error/data states.
 type ResourceFeedState =
   | { status: 'loading' }
   | { status: 'success'; data: PaginatedResourcesResponse }
   | { status: 'empty' }
   | { status: 'error' };
 
+// Display helpers
+// API dates arrive as ISO strings. Formatting stays at the UI boundary so the
+// API client can keep returning the raw JSON contract.
 function formatResourceDate(resource: PublicResource) {
   const dateValue = resource.publishedAt ?? resource.detectedAt;
 
@@ -27,6 +33,9 @@ export function DashboardRoute() {
     status: 'loading',
   });
 
+  // Initial resource loading
+  // ignoreResult prevents an outdated network response from updating state after
+  // React has unmounted this route.
   useEffect(() => {
     let ignoreResult = false;
 
@@ -70,6 +79,8 @@ export function DashboardRoute() {
 
       <section className="placeholder-panel" aria-labelledby="next-signals-title">
         <h2 id="next-signals-title">Flux de ressources</h2>
+
+        {/* Resource feed states */}
         {resourceFeed.status === 'loading' ? (
           <p>Chargement des ressources de veille...</p>
         ) : null}
