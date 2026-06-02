@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 
-import { ResourceCard } from '../components/resource/ResourceCard';
+import { ResourceSignalSection } from '../components/resource/ResourceSignalSection';
 import {
   fetchResources,
   type PaginatedResourcesResponse,
 } from '../api/resources-api';
+import { groupResourcesBySignal } from '../features/resources/group-resources-by-signal';
 
 // Resource feed state machine
 // One status owns the valid shape of the data. For example, data only exists
@@ -15,10 +16,38 @@ type ResourceFeedState =
   | { status: 'empty' }
   | { status: 'error' };
 
+// Dashboard signal sections
+// The order is intentional: security first, then releases, then trends. It keeps
+// high-impact alerts visible before broader watch signals.
+const signalSections = [
+  {
+    key: 'security',
+    title: 'Securite',
+    description: 'Alertes, correctifs et signaux qui peuvent demander une action rapide.',
+    emptyMessage: 'Aucun signal securite disponible pour le moment.',
+  },
+  {
+    key: 'release',
+    title: 'Releases',
+    description: 'Nouvelles versions, changelogs et evolutions a suivre.',
+    emptyMessage: 'Aucune release disponible pour le moment.',
+  },
+  {
+    key: 'trend',
+    title: 'Tendances',
+    description: "Signaux faibles, outils et pratiques qui montent dans l'ecosysteme.",
+    emptyMessage: 'Aucune tendance disponible pour le moment.',
+  },
+] as const;
+
 export function DashboardRoute() {
   const [resourceFeed, setResourceFeed] = useState<ResourceFeedState>({
     status: 'loading',
   });
+  const groupedResources =
+    resourceFeed.status === 'success'
+      ? groupResourcesBySignal(resourceFeed.data.items)
+      : null;
 
   // Initial resource loading
   // ignoreResult prevents an outdated network response from updating state after
@@ -87,13 +116,17 @@ export function DashboardRoute() {
         ) : null}
 
         {resourceFeed.status === 'success' ? (
-          <ul className="resource-list" aria-label="Ressources de veille">
-            {resourceFeed.data.items.map((resource) => (
-              <li key={resource.id}>
-                <ResourceCard resource={resource} />
-              </li>
+          <div className="resource-section-list">
+            {signalSections.map((section) => (
+              <ResourceSignalSection
+                key={section.key}
+                title={section.title}
+                description={section.description}
+                emptyMessage={section.emptyMessage}
+                resources={groupedResources?.[section.key] ?? []}
+              />
             ))}
-          </ul>
+          </div>
         ) : null}
       </section>
     </main>
