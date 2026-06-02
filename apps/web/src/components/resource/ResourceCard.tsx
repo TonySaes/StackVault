@@ -1,4 +1,5 @@
 import type { PublicResource } from '../../api/resources-api';
+import { ResourceTrustBadge } from './ResourceTrustBadge';
 import './ResourceCard.css';
 
 interface ResourceCardProps {
@@ -26,7 +27,34 @@ function formatTechnologies(resource: PublicResource) {
   return resource.technologies.map((technology) => technology.name).join(', ');
 }
 
+function getSourceTrustBadge(resource: PublicResource) {
+  switch (resource.source.status) {
+    case 'active':
+      return {
+        label: 'Source active',
+        tone: 'verified' as const,
+      };
+    case 'inactive':
+      return {
+        label: 'Source inactive',
+        tone: 'neutral' as const,
+      };
+    case 'error':
+      return {
+        label: 'Source en erreur',
+        tone: 'danger' as const,
+      };
+    default:
+      return {
+        label: 'Source a verifier',
+        tone: 'warning' as const,
+      };
+  }
+}
+
 export function ResourceCard({ resource }: ResourceCardProps) {
+  const sourceTrustBadge = getSourceTrustBadge(resource);
+
   return (
     <article className="resource-card">
       <div className="resource-meta">
@@ -43,6 +71,12 @@ export function ResourceCard({ resource }: ResourceCardProps) {
           {formatResourceDate(resource)}
         </time>
       </div>
+
+      <ResourceTrustBadge
+        label={sourceTrustBadge.label}
+        tone={sourceTrustBadge.tone}
+        accessibleLabel={`${sourceTrustBadge.label}: ${resource.source.name}`}
+      />
 
       <div className="resource-card-content">
         <h3>{resource.title}</h3>
