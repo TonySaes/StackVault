@@ -17,9 +17,17 @@ function formatResourceDate(resource: PublicResource) {
   }).format(new Date(dateValue));
 }
 
+function formatTechnologies(resource: PublicResource) {
+  if (resource.technologies.length === 0) {
+    return 'Technologie non precisee';
+  }
+
+  return resource.technologies.map((technology) => technology.name).join(', ');
+}
+
 export function ResourceCard({ resource }: ResourceCardProps) {
   return (
-    <article>
+    <article className="resource-card">
       <div className="resource-meta">
         <span>{resource.category.name}</span>
         <span>{resource.source.name}</span>
@@ -27,11 +35,16 @@ export function ResourceCard({ resource }: ResourceCardProps) {
           {formatResourceDate(resource)}
         </time>
       </div>
-      <h3>{resource.title}</h3>
-      <p>{resource.shortSummary ?? 'Resume indisponible pour le moment.'}</p>
+
+      <div className="resource-card-content">
+        <h3>{resource.title}</h3>
+        <p>{resource.shortSummary ?? 'Resume indisponible pour le moment.'}</p>
+      </div>
+
       <p className="resource-technologies">
-        {resource.technologies.map((technology) => technology.name).join(', ')}
+        {formatTechnologies(resource)}
       </p>
+
       <a
         className="resource-source-link"
         href={resource.sourceUrl}

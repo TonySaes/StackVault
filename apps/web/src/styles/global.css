@@ -92,22 +92,30 @@ h2 {
 .resource-item {
   border: 1px solid #2d333b;
   border-radius: 8px;
-  padding: 18px;
   background: #101419;
 }
 
-.resource-item h3 {
+.resource-card {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+}
+
+.resource-card-content h3 {
   margin: 0 0 10px;
   color: #f0f6fc;
   font-size: 1rem;
   line-height: 1.35;
 }
 
+.resource-card-content p {
+  margin-bottom: 0;
+}
+
 .resource-meta {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-bottom: 12px;
   color: #8b949e;
   font-size: 0.8125rem;
 }
@@ -120,7 +128,7 @@ h2 {
 }
 
 .resource-technologies {
-  margin-top: 12px;
+  margin-bottom: 0;
   color: #7dd3fc;
   font-size: 0.875rem;
   font-weight: 700;
@@ -130,7 +138,6 @@ h2 {
   display: inline-flex;
   align-items: center;
   min-height: 44px;
-  margin-top: 16px;
   color: #f0f6fc;
   font-size: 0.875rem;
   font-weight: 700;
