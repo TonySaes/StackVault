@@ -24,6 +24,13 @@
   padding: 4px 8px;
 }
 
+/* Trust indicators */
+.resource-trust-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 /* Main readable content */
 .resource-card-content h3 {
   margin: 0 0 10px;

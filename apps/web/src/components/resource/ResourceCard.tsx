@@ -130,21 +130,23 @@ export function ResourceCard({ resource }: ResourceCardProps) {
         </time>
       </div>
 
-      <ResourceTrustBadge
-        label={sourceTrustBadge.label}
-        tone={sourceTrustBadge.tone}
-        accessibleLabel={`${sourceTrustBadge.label}: ${resource.source.name}`}
-      />
-      <ResourceTrustBadge
-        label={freshnessBadge.label}
-        tone={freshnessBadge.tone}
-        accessibleLabel={`Fraicheur: ${freshnessBadge.label}`}
-      />
-      <ResourceTrustBadge
-        label={linkStatusBadge.label}
-        tone={linkStatusBadge.tone}
-        accessibleLabel={`Statut du lien: ${linkStatusBadge.label}`}
-      />
+      <div className="resource-trust-list" aria-label="Indicateurs de confiance">
+        <ResourceTrustBadge
+          label={sourceTrustBadge.label}
+          tone={sourceTrustBadge.tone}
+          accessibleLabel={`${sourceTrustBadge.label}: ${resource.source.name}`}
+        />
+        <ResourceTrustBadge
+          label={freshnessBadge.label}
+          tone={freshnessBadge.tone}
+          accessibleLabel={`Fraicheur: ${freshnessBadge.label}`}
+        />
+        <ResourceTrustBadge
+          label={linkStatusBadge.label}
+          tone={linkStatusBadge.tone}
+          accessibleLabel={`Statut du lien: ${linkStatusBadge.label}`}
+        />
+      </div>
 
       <div className="resource-card-content">
         <h3>{resource.title}</h3>
