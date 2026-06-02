@@ -1,0 +1,44 @@
+/* Badge shell */
+.resource-trust-badge {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  border: 1px solid var(--resource-trust-border);
+  border-radius: 999px;
+  padding: 4px 8px;
+  color: var(--resource-trust-text);
+  background: var(--resource-trust-surface);
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+/* Trust tones */
+.resource-trust-badge[data-tone="verified"] {
+  --resource-trust-border: #2f6f4e;
+  --resource-trust-surface: #102119;
+  --resource-trust-text: #8ee6b1;
+}
+
+.resource-trust-badge[data-tone="info"] {
+  --resource-trust-border: #235f7c;
+  --resource-trust-surface: #0f1d27;
+  --resource-trust-text: #7dd3fc;
+}
+
+.resource-trust-badge[data-tone="warning"] {
+  --resource-trust-border: #7c5f23;
+  --resource-trust-surface: #241d0f;
+  --resource-trust-text: #f5d36c;
+}
+
+.resource-trust-badge[data-tone="danger"] {
+  --resource-trust-border: #7c2d2d;
+  --resource-trust-surface: #271111;
+  --resource-trust-text: #fca5a5;
+}
+
+.resource-trust-badge[data-tone="neutral"] {
+  --resource-trust-border: #2d333b;
+  --resource-trust-surface: #151a20;
+  --resource-trust-text: #b7c0c9;
+}
