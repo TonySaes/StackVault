@@ -78,9 +78,40 @@ function getFreshnessBadge(resource: PublicResource) {
   };
 }
 
+function getLinkStatusBadge(resource: PublicResource) {
+  switch (resource.linkStatus) {
+    case 'active':
+      return {
+        label: 'Lien actif',
+        tone: 'verified' as const,
+      };
+    case 'unavailable':
+      return {
+        label: 'Lien indisponible',
+        tone: 'danger' as const,
+      };
+    case 'redirect':
+      return {
+        label: 'Redirection',
+        tone: 'warning' as const,
+      };
+    case 'unknown':
+      return {
+        label: 'Lien non verifie',
+        tone: 'neutral' as const,
+      };
+    default:
+      return {
+        label: 'Lien a verifier',
+        tone: 'warning' as const,
+      };
+  }
+}
+
 export function ResourceCard({ resource }: ResourceCardProps) {
   const sourceTrustBadge = getSourceTrustBadge(resource);
   const freshnessBadge = getFreshnessBadge(resource);
+  const linkStatusBadge = getLinkStatusBadge(resource);
 
   return (
     <article className="resource-card">
@@ -108,6 +139,11 @@ export function ResourceCard({ resource }: ResourceCardProps) {
         label={freshnessBadge.label}
         tone={freshnessBadge.tone}
         accessibleLabel={`Fraicheur: ${freshnessBadge.label}`}
+      />
+      <ResourceTrustBadge
+        label={linkStatusBadge.label}
+        tone={linkStatusBadge.tone}
+        accessibleLabel={`Statut du lien: ${linkStatusBadge.label}`}
       />
 
       <div className="resource-card-content">
