@@ -89,7 +89,7 @@ export function DashboardRoute() {
         {resourceFeed.status === 'success' ? (
           <ul className="resource-list" aria-label="Ressources de veille">
             {resourceFeed.data.items.map((resource) => (
-              <li className="resource-item" key={resource.id}>
+              <li key={resource.id}>
                 <ResourceCard resource={resource} />
               </li>
             ))}

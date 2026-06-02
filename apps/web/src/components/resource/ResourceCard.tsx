@@ -1,4 +1,5 @@
 import type { PublicResource } from '../../api/resources-api';
+import './ResourceCard.css';
 
 interface ResourceCardProps {
   resource: PublicResource;
