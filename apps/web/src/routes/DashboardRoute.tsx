@@ -126,6 +126,14 @@ export function DashboardRoute() {
                 resources={groupedResources?.[section.key] ?? []}
               />
             ))}
+            {groupedResources && groupedResources.other.length > 0 ? (
+              <ResourceSignalSection
+                title="Autres signaux"
+                description="Ressources classees avec un type de signal non encore standardise."
+                emptyMessage="Aucun autre signal disponible pour le moment."
+                resources={groupedResources.other}
+              />
+            ) : null}
           </div>
         ) : null}
       </section>
