@@ -52,8 +52,35 @@ function getSourceTrustBadge(resource: PublicResource) {
   }
 }
 
+function getFreshnessBadge(resource: PublicResource) {
+  const dateValue = resource.publishedAt ?? resource.detectedAt;
+  const ageInDays = Math.floor(
+    (Date.now() - new Date(dateValue).getTime()) / (1000 * 60 * 60 * 24),
+  );
+
+  if (ageInDays <= 14) {
+    return {
+      label: 'Recent',
+      tone: 'info' as const,
+    };
+  }
+
+  if (ageInDays <= 60) {
+    return {
+      label: 'A surveiller',
+      tone: 'warning' as const,
+    };
+  }
+
+  return {
+    label: 'Archive',
+    tone: 'neutral' as const,
+  };
+}
+
 export function ResourceCard({ resource }: ResourceCardProps) {
   const sourceTrustBadge = getSourceTrustBadge(resource);
+  const freshnessBadge = getFreshnessBadge(resource);
 
   return (
     <article className="resource-card">
@@ -76,6 +103,11 @@ export function ResourceCard({ resource }: ResourceCardProps) {
         label={sourceTrustBadge.label}
         tone={sourceTrustBadge.tone}
         accessibleLabel={`${sourceTrustBadge.label}: ${resource.source.name}`}
+      />
+      <ResourceTrustBadge
+        label={freshnessBadge.label}
+        tone={freshnessBadge.tone}
+        accessibleLabel={`Fraicheur: ${freshnessBadge.label}`}
       />
 
       <div className="resource-card-content">
