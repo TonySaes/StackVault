@@ -12,8 +12,30 @@ import { AppModule } from './app.module.js';
 const currentDir = dirname(fileURLToPath(import.meta.url));
 config({ path: resolve(currentDir, '../.env') });
 
+// Cross-origin development configuration
+// The web app and API run on different local ports, so the browser treats them
+// as different origins. This parser keeps production/deployment origins
+// configurable while preserving a practical local fallback.
+function getAllowedCorsOrigins() {
+  const configuredOrigins = process.env.CORS_ALLOWED_ORIGINS?.split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
+  if (configuredOrigins && configuredOrigins.length > 0) {
+    return configuredOrigins;
+  }
+
+  return ['http://127.0.0.1:5173', 'http://localhost:5173'];
+}
+
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  // CORS is a browser boundary: the API can return 200, but the browser still
+  // blocks frontend JavaScript unless this header explicitly allows the origin.
+  app.enableCors({
+    origin: getAllowedCorsOrigins(),
+  });
 
   app.setGlobalPrefix('api/v1');
   app.useGlobalPipes(
