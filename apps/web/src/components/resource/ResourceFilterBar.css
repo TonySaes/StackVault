@@ -1,42 +1,42 @@
 /* Filter bar shell */
 .resource-filter-bar {
   display: grid;
-  gap: 16px;
-  margin-bottom: 24px;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
 }
 
 /* Filter controls */
 .resource-filter-grid {
   display: grid;
-  gap: 12px;
+  gap: var(--space-3);
 }
 
 .resource-filter-field {
   display: grid;
-  gap: 6px;
+  gap: var(--space-2);
 }
 
 .resource-filter-field label {
-  color: #f0f6fc;
-  font-size: 0.875rem;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
   font-weight: 700;
 }
 
 .resource-filter-field input,
 .resource-filter-field select {
-  min-height: 44px;
-  border: 1px solid #2d333b;
-  border-radius: 8px;
-  padding: 0 12px;
-  color: #e6edf3;
-  background: #101419;
+  min-height: var(--touch-target-min);
+  border: var(--border-width-sm) solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  padding: 0 var(--space-3);
+  color: var(--color-text-body);
+  background: var(--color-bg-input);
 }
 
 .resource-filter-field input:focus-visible,
 .resource-filter-field select:focus-visible,
 .resource-filter-reset:focus-visible {
-  outline: 2px solid #7dd3fc;
-  outline-offset: 3px;
+  outline: var(--focus-ring-width) solid var(--color-accent);
+  outline-offset: var(--focus-ring-offset);
 }
 
 /* Active filter summary */
@@ -44,26 +44,27 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
-  color: #8b949e;
-  font-size: 0.875rem;
+  gap: var(--space-3);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
 }
 
 .resource-filter-reset {
-  min-height: 44px;
-  border: 1px solid #2d333b;
-  border-radius: 8px;
-  padding: 0 12px;
-  color: #f0f6fc;
-  background: #161b22;
+  min-height: var(--touch-target-min);
+  border: var(--border-width-sm) solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  padding: 0 var(--space-3);
+  color: var(--color-text-primary);
+  background: var(--color-bg-panel);
   cursor: pointer;
 }
 
 .resource-filter-reset:hover {
-  border-color: #7dd3fc;
-  color: #7dd3fc;
+  border-color: var(--color-accent);
+  color: var(--color-accent);
 }
 
+/* CSS variables cannot reliably drive media query conditions, so the breakpoint stays literal. */
 @media (min-width: 768px) {
   .resource-filter-grid {
     grid-template-columns: 1.4fr 1fr 1fr;

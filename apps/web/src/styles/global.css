@@ -2,12 +2,34 @@
   /* Color tokens */
   --color-bg-page: #101214;
   --color-bg-panel: #161b22;
+  --color-bg-input: #101419;
   --color-border-subtle: #2d333b;
+  --color-text-primary: #f0f6fc;
   --color-text-body: #e6edf3;
   --color-text-secondary: #b7c0c9;
+  --color-text-muted: #8b949e;
   --color-accent: #7dd3fc;
 
+  /* Trust tone tokens */
+  --color-trust-verified-border: #2f6f4e;
+  --color-trust-verified-surface: #102119;
+  --color-trust-verified-text: #8ee6b1;
+  --color-trust-info-border: #235f7c;
+  --color-trust-info-surface: #0f1d27;
+  --color-trust-info-text: #7dd3fc;
+  --color-trust-warning-border: #7c5f23;
+  --color-trust-warning-surface: #241d0f;
+  --color-trust-warning-text: #f5d36c;
+  --color-trust-danger-border: #7c2d2d;
+  --color-trust-danger-surface: #271111;
+  --color-trust-danger-text: #fca5a5;
+  --color-trust-neutral-border: #2d333b;
+  --color-trust-neutral-surface: #151a20;
+  --color-trust-neutral-text: #b7c0c9;
+
   /* Spacing tokens */
+  --space-1: 4px;
+  --space-2: 8px;
   --space-3: 12px;
   --space-4: 16px;
   --space-5: 24px;
@@ -16,10 +38,18 @@
 
   /* Shape tokens */
   --border-width-sm: 1px;
+  --radius-sm: 4px;
   --radius-md: 8px;
+  --radius-pill: 999px;
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 3px;
+  --touch-target-min: 44px;
 
   /* Typography and layout tokens */
+  --font-size-xs: 0.8125rem;
   --font-size-sm: 0.875rem;
+  --font-size-md: 0.9375rem;
+  --font-size-base: 1rem;
   --font-size-lg: 1.125rem;
   --font-size-xl: 1.25rem;
   --content-width-page: 960px;
