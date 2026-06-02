@@ -141,3 +141,9 @@ h2 {
   display: grid;
   gap: calc(var(--space-3) + var(--space-4));
 }
+
+.resource-filter-empty {
+  border: var(--border-width-sm) dashed var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+}
