@@ -30,9 +30,16 @@ export function ResourceCard({ resource }: ResourceCardProps) {
   return (
     <article className="resource-card">
       <div className="resource-meta">
-        <span>{resource.category.name}</span>
-        <span>{resource.source.name}</span>
-        <time dateTime={resource.publishedAt ?? resource.detectedAt}>
+        <span aria-label={`Categorie: ${resource.category.name}`}>
+          {resource.category.name}
+        </span>
+        <span aria-label={`Source: ${resource.source.name}`}>
+          {resource.source.name}
+        </span>
+        <time
+          aria-label={`Date: ${formatResourceDate(resource)}`}
+          dateTime={resource.publishedAt ?? resource.detectedAt}
+        >
           {formatResourceDate(resource)}
         </time>
       </div>
@@ -49,6 +56,7 @@ export function ResourceCard({ resource }: ResourceCardProps) {
       <a
         className="resource-source-link"
         href={resource.sourceUrl}
+        aria-label={`Lire la source officielle de ${resource.title}`}
         target="_blank"
         rel="noreferrer"
       >
