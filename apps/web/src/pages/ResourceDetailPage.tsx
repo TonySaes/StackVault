@@ -6,7 +6,7 @@ import {
   type PublicResource,
 } from '../api/resources-api';
 import { ResourceDetail } from '../components/resource/ResourceDetail';
-import './ResourceDetailPage.css';
+import './PublicPage.css';
 
 interface ResourceDetailPageProps {
   resourceId: string;
@@ -79,7 +79,7 @@ export function ResourceDetailPage({ resourceId }: ResourceDetailPageProps) {
             Cette ressource n'existe pas ou n'est plus disponible publiquement.
           </p>
           <p>
-            <a className="resource-detail-page-back-link" href="/">
+            <a className="public-page-back-link" href="/">
               Revenir au dashboard
             </a>
           </p>
@@ -99,7 +99,7 @@ export function ResourceDetailPage({ resourceId }: ResourceDetailPageProps) {
             reprendre quand le service sera disponible.
           </p>
           <p>
-            <a className="resource-detail-page-back-link" href="/">
+            <a className="public-page-back-link" href="/">
               Revenir au dashboard
             </a>
           </p>
@@ -113,7 +113,7 @@ export function ResourceDetailPage({ resourceId }: ResourceDetailPageProps) {
   return (
     <main className="app-shell" aria-labelledby="resource-detail-title">
       <p>
-        <a className="resource-detail-page-back-link" href="/">
+        <a className="public-page-back-link" href="/">
           Revenir au dashboard
         </a>
       </p>

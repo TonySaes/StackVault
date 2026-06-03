@@ -1,5 +1,5 @@
-/* Page-level navigation */
-.resource-detail-page-back-link {
+/* Shared public page navigation */
+.public-page-back-link {
   display: inline-flex;
   align-items: center;
   min-height: var(--touch-target-min);
@@ -10,11 +10,11 @@
   text-underline-offset: var(--space-1);
 }
 
-.resource-detail-page-back-link:hover {
+.public-page-back-link:hover {
   color: var(--color-accent);
 }
 
-.resource-detail-page-back-link:focus-visible {
+.public-page-back-link:focus-visible {
   outline: var(--focus-ring-width) solid var(--color-accent);
   outline-offset: var(--space-1);
   border-radius: var(--radius-sm);

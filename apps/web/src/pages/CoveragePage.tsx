@@ -5,6 +5,7 @@ import {
   type PublicCoverageResponse,
 } from '../api/coverage-api';
 import { CoverageSummary } from '../components/coverage/CoverageSummary';
+import './PublicPage.css';
 
 type CoveragePageState =
   | { status: 'loading' }
@@ -78,7 +79,7 @@ export function CoveragePage() {
             indique une couverture vide, pas une panne technique.
           </p>
           <p>
-            <a className="resource-detail-page-back-link" href="/">
+            <a className="public-page-back-link" href="/">
               Revenir au dashboard
             </a>
           </p>
@@ -98,7 +99,7 @@ export function CoveragePage() {
             pourra reprendre quand le service sera disponible.
           </p>
           <p>
-            <a className="resource-detail-page-back-link" href="/">
+            <a className="public-page-back-link" href="/">
               Revenir au dashboard
             </a>
           </p>
@@ -112,7 +113,7 @@ export function CoveragePage() {
   return (
     <main className="app-shell" aria-labelledby="coverage-title">
       <p>
-        <a className="resource-detail-page-back-link" href="/">
+        <a className="public-page-back-link" href="/">
           Revenir au dashboard
         </a>
       </p>
