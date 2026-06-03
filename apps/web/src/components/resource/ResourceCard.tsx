@@ -173,11 +173,20 @@ export function ResourceCard({ resource }: ResourceCardProps) {
         <a
           className="resource-source-link"
           href={resource.sourceUrl}
-          aria-label={`Lire la source officielle de ${resource.title}`}
+          aria-label={`Lire la source officielle de ${resource.title}, ouvre un nouvel onglet`}
           target="_blank"
           rel="noreferrer"
         >
-          Lire la source officielle
+          <span className="resource-source-link-label">
+            Lire la source officielle
+          </span>
+          <span className="resource-source-link-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" focusable="false">
+              <path d="M14 4h6v6" />
+              <path d="M10 14 20 4" />
+              <path d="M20 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h4" />
+            </svg>
+          </span>
         </a>
       </div>
     </article>
