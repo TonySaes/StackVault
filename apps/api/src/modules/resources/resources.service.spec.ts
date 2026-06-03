@@ -5,6 +5,7 @@ import { PrismaService } from '../../database/prisma.service.js';
 import { ResourcesService } from './resources.service.js';
 
 interface PrismaResourceFindManyArgs {
+  orderBy: unknown;
   skip: number;
   take: number;
 }
@@ -96,6 +97,10 @@ describe('ResourcesService', () => {
 
     assert.equal(calls[0]?.skip, 0);
     assert.equal(calls[0]?.take, 50);
+    assert.deepEqual(calls[0]?.orderBy, [
+      { publishedAt: { sort: 'desc', nulls: 'last' } },
+      { detectedAt: 'desc' },
+    ]);
     assert.equal(result.pageSize, 50);
     assert.equal(result.total, 1);
     assert.deepEqual(result.items[0]?.technologies, [
