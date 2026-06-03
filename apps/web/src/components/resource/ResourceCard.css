@@ -1,41 +1,41 @@
 /* Resource card shell */
 .resource-card {
   display: grid;
-  gap: 14px;
-  padding: 18px;
-  border: 1px solid #2d333b;
-  border-radius: 8px;
-  background: #101419;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border: var(--border-width-sm) solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-input);
 }
 
 /* Scan metadata */
 .resource-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  color: #8b949e;
-  font-size: 0.8125rem;
+  gap: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
 }
 
 .resource-meta span,
 .resource-meta time {
-  border: 1px solid #2d333b;
-  border-radius: 999px;
-  padding: 4px 8px;
+  border: var(--border-width-sm) solid var(--color-border-subtle);
+  border-radius: var(--radius-pill);
+  padding: var(--space-1) var(--space-2);
 }
 
 /* Trust indicators */
 .resource-trust-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 /* Main readable content */
 .resource-card-content h3 {
-  margin: 0 0 10px;
-  color: #f0f6fc;
-  font-size: 1rem;
+  margin: 0 0 var(--space-2);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-base);
   line-height: 1.35;
 }
 
@@ -46,8 +46,8 @@
 /* Secondary classification */
 .resource-technologies {
   margin-bottom: 0;
-  color: #7dd3fc;
-  font-size: 0.875rem;
+  color: var(--color-accent);
+  font-size: var(--font-size-sm);
   font-weight: 700;
 }
 
@@ -55,20 +55,20 @@
 .resource-source-link {
   display: inline-flex;
   align-items: center;
-  min-height: 44px;
-  color: #f0f6fc;
-  font-size: 0.875rem;
+  min-height: var(--touch-target-min);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
   font-weight: 700;
-  text-decoration-color: #7dd3fc;
-  text-underline-offset: 4px;
+  text-decoration-color: var(--color-accent);
+  text-underline-offset: var(--space-1);
 }
 
 .resource-source-link:hover {
-  color: #7dd3fc;
+  color: var(--color-accent);
 }
 
 .resource-source-link:focus-visible {
-  outline: 2px solid #7dd3fc;
-  outline-offset: 4px;
-  border-radius: 4px;
+  outline: var(--focus-ring-width) solid var(--color-accent);
+  outline-offset: var(--space-1);
+  border-radius: var(--radius-sm);
 }

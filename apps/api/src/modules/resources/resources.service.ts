@@ -68,7 +68,10 @@ export class ResourcesService {
         where: {
           lifecycleStatus: 'active',
         },
-        orderBy: [{ publishedAt: 'desc' }, { detectedAt: 'desc' }],
+        orderBy: [
+          { publishedAt: { sort: 'desc', nulls: 'last' } },
+          { detectedAt: 'desc' },
+        ],
         skip,
         take: pageSize,
         select: {

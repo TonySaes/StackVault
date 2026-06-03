@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, Max, Min } from 'class-validator';
+import { IsInt, IsOptional, Min } from 'class-validator';
 
 export const DEFAULT_RESOURCES_PAGE = 1;
 export const DEFAULT_RESOURCES_PAGE_SIZE = 20;
@@ -16,7 +16,6 @@ export class ListResourcesQueryDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  @Max(MAX_RESOURCES_PAGE_SIZE)
   pageSize = DEFAULT_RESOURCES_PAGE_SIZE;
 }
 
