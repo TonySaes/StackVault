@@ -162,6 +162,13 @@ h2 {
   background: var(--color-bg-panel);
 }
 
+.placeholder-panel h1 {
+  max-width: var(--content-width-text);
+  font-size: clamp(1.75rem, 7vw, 2.5rem);
+  line-height: 1.12;
+  overflow-wrap: anywhere;
+}
+
 .placeholder-panel p {
   margin-bottom: 0;
   color: var(--color-text-secondary);
