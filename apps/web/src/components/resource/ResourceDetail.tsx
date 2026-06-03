@@ -23,6 +23,21 @@ function formatTechnologies(resource: PublicResource) {
   return resource.technologies.map((technology) => technology.name).join(', ');
 }
 
+function formatLinkStatus(linkStatus: string) {
+  switch (linkStatus) {
+    case 'active':
+      return 'Lien actif';
+    case 'unavailable':
+      return 'Lien indisponible';
+    case 'redirect':
+      return 'Redirection';
+    case 'unknown':
+      return 'Lien non verifie';
+    default:
+      return 'Lien a verifier';
+  }
+}
+
 export function ResourceDetail({ resource }: ResourceDetailProps) {
   return (
     <article className="resource-detail">
@@ -57,7 +72,7 @@ export function ResourceDetail({ resource }: ResourceDetailProps) {
         </div>
         <div>
           <dt>Statut du lien</dt>
-          <dd>{resource.linkStatus}</dd>
+          <dd>{formatLinkStatus(resource.linkStatus)}</dd>
         </div>
       </dl>
 

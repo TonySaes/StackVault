@@ -66,6 +66,10 @@
 }
 
 .coverage-list a {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  min-height: var(--touch-target-min);
   text-decoration-color: var(--color-accent);
   text-underline-offset: var(--space-1);
 }
@@ -76,7 +80,7 @@
 
 .coverage-list a:focus-visible {
   outline: var(--focus-ring-width) solid var(--color-accent);
-  outline-offset: var(--space-1);
+  outline-offset: var(--focus-ring-offset);
   border-radius: var(--radius-sm);
 }
 

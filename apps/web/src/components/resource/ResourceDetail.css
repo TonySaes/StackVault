@@ -81,7 +81,7 @@
 
 .resource-detail-source-link:focus-visible {
   outline: var(--focus-ring-width) solid var(--color-accent);
-  outline-offset: var(--space-1);
+  outline-offset: var(--focus-ring-offset);
 }
 
 @media (min-width: 760px) {
