@@ -27,6 +27,10 @@ function formatTechnologies(resource: PublicResource) {
   return resource.technologies.map((technology) => technology.name).join(', ');
 }
 
+function buildResourceDetailPath(resource: PublicResource) {
+  return `/resources/${encodeURIComponent(resource.id)}`;
+}
+
 function getSourceTrustBadge(resource: PublicResource) {
   switch (resource.source.status) {
     case 'active':
@@ -112,6 +116,7 @@ export function ResourceCard({ resource }: ResourceCardProps) {
   const sourceTrustBadge = getSourceTrustBadge(resource);
   const freshnessBadge = getFreshnessBadge(resource);
   const linkStatusBadge = getLinkStatusBadge(resource);
+  const resourceDetailPath = buildResourceDetailPath(resource);
 
   return (
     <article className="resource-card">
@@ -157,15 +162,24 @@ export function ResourceCard({ resource }: ResourceCardProps) {
         {formatTechnologies(resource)}
       </p>
 
-      <a
-        className="resource-source-link"
-        href={resource.sourceUrl}
-        aria-label={`Lire la source officielle de ${resource.title}`}
-        target="_blank"
-        rel="noreferrer"
-      >
-        Lire la source officielle
-      </a>
+      <div className="resource-actions">
+        <a
+          className="resource-detail-link"
+          href={resourceDetailPath}
+          aria-label={`Ouvrir la fiche detaillee de ${resource.title}`}
+        >
+          Ouvrir la fiche
+        </a>
+        <a
+          className="resource-source-link"
+          href={resource.sourceUrl}
+          aria-label={`Lire la source officielle de ${resource.title}`}
+          target="_blank"
+          rel="noreferrer"
+        >
+          Lire la source officielle
+        </a>
+      </div>
     </article>
   );
 }
