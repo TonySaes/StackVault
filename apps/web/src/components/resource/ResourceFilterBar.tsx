@@ -28,7 +28,7 @@ export function ResourceFilterBar({
   onResetFilters,
 }: ResourceFilterBarProps) {
   return (
-    <div className="resource-filter-bar" aria-label="Recherche et filtres">
+    <section className="resource-filter-bar" aria-label="Recherche et filtres">
       <div className="resource-filter-grid">
         <div className="resource-filter-field">
           <label htmlFor="resource-search">Recherche</label>
@@ -86,6 +86,6 @@ export function ResourceFilterBar({
           </button>
         </div>
       ) : null}
-    </div>
+    </section>
   );
 }
