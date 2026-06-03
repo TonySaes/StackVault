@@ -1,8 +1,9 @@
-import { Controller, Get, Inject, Query } from '@nestjs/common';
+import { Controller, Get, Inject, Param, Query } from '@nestjs/common';
 
 import { ListResourcesQueryDto } from './dto/list-resources-query.dto.js';
 import {
   PaginatedResourcesResponse,
+  PublicResourceItem,
   ResourcesService,
 } from './resources.service.js';
 
@@ -18,5 +19,12 @@ export class ResourcesController {
     @Query() query: ListResourcesQueryDto,
   ): Promise<PaginatedResourcesResponse> {
     return this.resourcesService.listResources(query);
+  }
+
+  @Get(':id')
+  async getResourceById(
+    @Param('id') resourceId: string,
+  ): Promise<PublicResourceItem> {
+    return this.resourcesService.getResourceById(resourceId);
   }
 }

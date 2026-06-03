@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
+import { NotFoundException } from '@nestjs/common';
+
 import { PrismaService } from '../../database/prisma.service.js';
 import { ResourcesService } from './resources.service.js';
 
@@ -10,14 +12,62 @@ interface PrismaResourceFindManyArgs {
   take: number;
 }
 
-function createPrismaMock(resources: unknown[], total: number) {
+interface PrismaResourceFindFirstArgs {
+  where: unknown;
+}
+
+const publicResourceRecord = {
+  id: 'resource-id',
+  title: 'Node.js security releases',
+  shortSummary: 'Security release guidance.',
+  sourceUrl: 'https://nodejs.org/en/blog/vulnerability',
+  canonicalUrl: 'https://nodejs.org/en/blog/vulnerability',
+  publishedAt: new Date('2025-05-14T00:00:00.000Z'),
+  detectedAt: new Date('2026-05-20T16:04:52.047Z'),
+  lifecycleStatus: 'active',
+  linkStatus: 'unknown',
+  source: {
+    id: 'source-id',
+    name: 'Node.js Blog',
+    url: 'https://nodejs.org/en/blog',
+    type: 'public_metadata',
+    status: 'active',
+  },
+  category: {
+    id: 'category-id',
+    name: 'Security',
+    slug: 'security',
+    signalType: 'security',
+  },
+  technologyLinks: [
+    {
+      technology: {
+        id: 'technology-id',
+        name: 'Node.js',
+        slug: 'nodejs',
+        status: 'active',
+      },
+    },
+  ],
+};
+
+function createPrismaMock(
+  resources: unknown[],
+  total: number,
+  resourceDetail: unknown = null,
+) {
   const calls: PrismaResourceFindManyArgs[] = [];
+  const detailCalls: PrismaResourceFindFirstArgs[] = [];
 
   const prisma = {
     resource: {
       findMany(args: PrismaResourceFindManyArgs) {
         calls.push(args);
         return Promise.resolve(resources);
+      },
+      findFirst(args: PrismaResourceFindFirstArgs) {
+        detailCalls.push(args);
+        return Promise.resolve(resourceDetail);
       },
       count() {
         return Promise.resolve(total);
@@ -31,6 +81,7 @@ function createPrismaMock(resources: unknown[], total: number) {
   return {
     prisma,
     calls,
+    detailCalls,
   };
 }
 
@@ -53,41 +104,7 @@ describe('ResourcesService', () => {
   });
 
   it('clamps pageSize and maps resource technology links to public technologies', async () => {
-    const resource = {
-      id: 'resource-id',
-      title: 'Node.js security releases',
-      shortSummary: 'Security release guidance.',
-      sourceUrl: 'https://nodejs.org/en/blog/vulnerability',
-      canonicalUrl: 'https://nodejs.org/en/blog/vulnerability',
-      publishedAt: new Date('2025-05-14T00:00:00.000Z'),
-      detectedAt: new Date('2026-05-20T16:04:52.047Z'),
-      lifecycleStatus: 'active',
-      linkStatus: 'unknown',
-      source: {
-        id: 'source-id',
-        name: 'Node.js Blog',
-        url: 'https://nodejs.org/en/blog',
-        type: 'public_metadata',
-        status: 'active',
-      },
-      category: {
-        id: 'category-id',
-        name: 'Security',
-        slug: 'security',
-        signalType: 'security',
-      },
-      technologyLinks: [
-        {
-          technology: {
-            id: 'technology-id',
-            name: 'Node.js',
-            slug: 'nodejs',
-            status: 'active',
-          },
-        },
-      ],
-    };
-    const { prisma, calls } = createPrismaMock([resource], 1);
+    const { prisma, calls } = createPrismaMock([publicResourceRecord], 1);
     const service = new ResourcesService(prisma);
 
     const result = await service.listResources({
@@ -115,5 +132,41 @@ describe('ResourcesService', () => {
     assert.equal('body' in result.items[0]!, false);
     assert.equal('fullText' in result.items[0]!, false);
     assert.equal('rawContent' in result.items[0]!, false);
+  });
+
+  it('returns one active public resource by id', async () => {
+    const { prisma, detailCalls } = createPrismaMock(
+      [],
+      0,
+      publicResourceRecord,
+    );
+    const service = new ResourcesService(prisma);
+
+    const result = await service.getResourceById('resource-id');
+
+    assert.deepEqual(detailCalls[0]?.where, {
+      id: 'resource-id',
+      lifecycleStatus: 'active',
+    });
+    assert.equal(result.id, 'resource-id');
+    assert.deepEqual(result.technologies, [
+      {
+        id: 'technology-id',
+        name: 'Node.js',
+        slug: 'nodejs',
+        status: 'active',
+      },
+    ]);
+    assert.equal('technologyLinks' in result, false);
+  });
+
+  it('throws a not found exception when the public resource does not exist', async () => {
+    const { prisma } = createPrismaMock([], 0, null);
+    const service = new ResourcesService(prisma);
+
+    await assert.rejects(
+      () => service.getResourceById('missing-resource-id'),
+      NotFoundException,
+    );
   });
 });

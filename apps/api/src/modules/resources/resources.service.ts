@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 
 import { PrismaService } from '../../database/prisma.service.js';
 import {
@@ -28,7 +28,7 @@ interface PublicResourceTechnology {
   status: string;
 }
 
-interface PublicResourceItem {
+export interface PublicResourceItem {
   id: string;
   title: string;
   shortSummary: string | null;
@@ -128,25 +128,106 @@ export class ResourcesService {
     ]);
 
     return {
-      items: resources.map((resource) => ({
-        id: resource.id,
-        title: resource.title,
-        shortSummary: resource.shortSummary,
-        sourceUrl: resource.sourceUrl,
-        canonicalUrl: resource.canonicalUrl,
-        publishedAt: resource.publishedAt,
-        detectedAt: resource.detectedAt,
-        lifecycleStatus: resource.lifecycleStatus,
-        linkStatus: resource.linkStatus,
-        source: resource.source,
-        category: resource.category,
-        technologies: resource.technologyLinks.map(
-          (technologyLink) => technologyLink.technology,
-        ),
-      })),
+      items: resources.map((resource) => this.mapPublicResource(resource)),
       page,
       pageSize,
       total,
+    };
+  }
+
+  async getResourceById(resourceId: string): Promise<PublicResourceItem> {
+    const resource = await this.prisma.resource.findFirst({
+      where: {
+        id: resourceId,
+        lifecycleStatus: 'active',
+      },
+      select: {
+        id: true,
+        title: true,
+        shortSummary: true,
+        sourceUrl: true,
+        canonicalUrl: true,
+        publishedAt: true,
+        detectedAt: true,
+        lifecycleStatus: true,
+        linkStatus: true,
+        source: {
+          select: {
+            id: true,
+            name: true,
+            url: true,
+            type: true,
+            status: true,
+          },
+        },
+        category: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            signalType: true,
+          },
+        },
+        technologyLinks: {
+          select: {
+            technology: {
+              select: {
+                id: true,
+                name: true,
+                slug: true,
+                status: true,
+              },
+            },
+          },
+          orderBy: {
+            technology: {
+              name: 'asc',
+            },
+          },
+        },
+      },
+    });
+
+    if (!resource) {
+      throw new NotFoundException('Resource not found');
+    }
+
+    return this.mapPublicResource(resource);
+  }
+
+  // Public API mapper
+  // Prisma exposes technologies through the join relation `technologyLinks`.
+  // The HTTP contract exposes a direct `technologies` array so callers do not
+  // need to know the database join-table shape.
+  private mapPublicResource(resource: {
+    id: string;
+    title: string;
+    shortSummary: string | null;
+    sourceUrl: string;
+    canonicalUrl: string;
+    publishedAt: Date | null;
+    detectedAt: Date;
+    lifecycleStatus: string;
+    linkStatus: string;
+    source: PublicResourceSource;
+    category: PublicResourceCategory;
+    technologyLinks: { technology: PublicResourceTechnology }[];
+  }): PublicResourceItem {
+    return {
+      id: resource.id,
+      title: resource.title,
+      shortSummary: resource.shortSummary,
+      sourceUrl: resource.sourceUrl,
+      canonicalUrl: resource.canonicalUrl,
+      publishedAt: resource.publishedAt,
+      detectedAt: resource.detectedAt,
+      lifecycleStatus: resource.lifecycleStatus,
+      linkStatus: resource.linkStatus,
+      source: resource.source,
+      category: resource.category,
+      technologies: resource.technologyLinks.map(
+        (technologyLink) => technologyLink.technology,
+      ),
     };
   }
 }
