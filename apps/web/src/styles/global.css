@@ -124,6 +124,37 @@ h2 {
   line-height: 1.65;
 }
 
+.dashboard-public-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+}
+
+.dashboard-public-nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-target-min);
+  border: var(--border-width-sm) solid var(--color-accent);
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-3);
+  color: var(--color-bg-page);
+  background: var(--color-accent);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.dashboard-public-nav a:hover {
+  border-color: var(--color-text-primary);
+  background: var(--color-text-primary);
+}
+
+.dashboard-public-nav a:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-accent);
+  outline-offset: var(--space-1);
+}
+
 .placeholder-panel {
   border: var(--border-width-sm) solid var(--color-border-subtle);
   border-radius: var(--radius-md);
