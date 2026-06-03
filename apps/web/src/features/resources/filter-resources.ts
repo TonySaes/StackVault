@@ -6,14 +6,25 @@ export interface ResourceFilters {
   categorySlug: string;
 }
 
+function normalizeSearchText(value: string) {
+  // NFD separates accented letters from their diacritics, so plain ASCII input
+  // and accented French text can match each other.
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
+
 function matchesSearchQuery(resource: PublicResource, searchQuery: string) {
-  const normalizedQuery = searchQuery.trim().toLowerCase();
+  const normalizedQuery = normalizeSearchText(searchQuery.trim());
 
   if (normalizedQuery.length === 0) {
     return true;
   }
 
-  const searchableText = `${resource.title} ${resource.shortSummary ?? ''}`.toLowerCase();
+  const searchableText = normalizeSearchText(
+    `${resource.title} ${resource.shortSummary ?? ''}`,
+  );
 
   return searchableText.includes(normalizedQuery);
 }
