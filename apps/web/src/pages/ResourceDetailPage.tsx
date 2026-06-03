@@ -5,6 +5,7 @@ import {
   ResourceNotFoundError,
   type PublicResource,
 } from '../api/resources-api';
+import { ResourceDetail } from '../components/resource/ResourceDetail';
 
 interface ResourceDetailPageProps {
   resourceId: string;
@@ -110,26 +111,12 @@ export function ResourceDetailPage({ resourceId }: ResourceDetailPageProps) {
 
   return (
     <main className="app-shell" aria-labelledby="resource-detail-title">
-      <article className="placeholder-panel">
-        <p className="eyebrow">Fiche ressource</p>
-        <h1 id="resource-detail-title">{resource.title}</h1>
-        <p className="lede">
-          {resource.shortSummary ?? 'Resume indisponible pour le moment.'}
-        </p>
-        <p>Source : {resource.source.name}</p>
-        <p>Categorie : {resource.category.name}</p>
-        <p>
-          <a
-            className="resource-source-link"
-            href={resource.sourceUrl}
-            aria-label={`Lire la source officielle de ${resource.title}`}
-            target="_blank"
-            rel="noreferrer"
-          >
-            Lire la source officielle
-          </a>
-        </p>
-      </article>
+      <p>
+        <a className="resource-source-link" href="/">
+          Revenir au dashboard
+        </a>
+      </p>
+      <ResourceDetail resource={resource} />
     </main>
   );
 }
