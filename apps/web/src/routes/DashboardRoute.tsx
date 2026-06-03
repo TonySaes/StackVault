@@ -255,7 +255,7 @@ export function DashboardRoute() {
                 ) : null}
               </>
             ) : (
-              <p className="resource-filter-empty">
+              <p className="resource-filter-empty" role="status">
                 Aucune ressource ne correspond aux criteres actuels. Modifiez ou
                 reinitialisez les filtres pour retrouver le flux complet.
               </p>
