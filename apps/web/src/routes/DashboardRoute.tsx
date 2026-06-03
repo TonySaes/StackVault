@@ -194,6 +194,9 @@ export function DashboardRoute() {
           Un dashboard public minimal est pret. Les releases, signaux de securite
           et tendances seront ajoutes par increments dedies.
         </p>
+        <nav className="dashboard-public-nav" aria-label="Navigation publique">
+          <a href="/coverage">Voir la couverture suivie</a>
+        </nav>
       </section>
 
       <section className="placeholder-panel" aria-labelledby="next-signals-title">

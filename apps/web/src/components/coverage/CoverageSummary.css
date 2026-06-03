@@ -1,0 +1,87 @@
+/* Coverage summary shell */
+.coverage-summary {
+  display: grid;
+  gap: var(--space-5);
+  border: var(--border-width-sm) solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-5);
+  background: var(--color-bg-panel);
+}
+
+.coverage-summary-header {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.coverage-summary h1 {
+  margin-bottom: 0;
+  color: var(--color-text-primary);
+  font-size: clamp(1.75rem, 7vw, 2.5rem);
+  line-height: 1.12;
+}
+
+.coverage-summary h2 {
+  margin-bottom: var(--space-3);
+}
+
+.coverage-summary p {
+  margin-bottom: 0;
+  color: var(--color-text-secondary);
+  line-height: 1.65;
+}
+
+.coverage-summary-grid {
+  display: grid;
+  gap: var(--space-5);
+}
+
+/* Coverage lists */
+.coverage-list {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.coverage-list li {
+  display: grid;
+  gap: var(--space-2);
+  border: var(--border-width-sm) solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  background: var(--color-bg-input);
+}
+
+.coverage-list span:first-child {
+  color: var(--color-text-primary);
+  font-weight: 700;
+}
+
+.coverage-list span:not(:first-child),
+.coverage-list a {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  overflow-wrap: anywhere;
+}
+
+.coverage-list a {
+  text-decoration-color: var(--color-accent);
+  text-underline-offset: var(--space-1);
+}
+
+.coverage-list a:hover {
+  color: var(--color-accent);
+}
+
+.coverage-list a:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-accent);
+  outline-offset: var(--space-1);
+  border-radius: var(--radius-sm);
+}
+
+@media (min-width: 760px) {
+  .coverage-summary-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+  }
+}
