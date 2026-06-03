@@ -51,22 +51,48 @@
   font-weight: 700;
 }
 
-/* Primary source action */
+/* Card actions */
+.resource-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.resource-detail-link,
 .resource-source-link {
   display: inline-flex;
   align-items: center;
   min-height: var(--touch-target-min);
-  color: var(--color-text-primary);
   font-size: var(--font-size-sm);
   font-weight: 700;
+}
+
+.resource-detail-link {
+  border: var(--border-width-sm) solid var(--color-accent);
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-3);
+  color: var(--color-bg-page);
+  background: var(--color-accent);
+  text-decoration: none;
+}
+
+.resource-source-link {
+  color: var(--color-text-primary);
   text-decoration-color: var(--color-accent);
   text-underline-offset: var(--space-1);
+}
+
+.resource-detail-link:hover {
+  border-color: var(--color-text-primary);
+  background: var(--color-text-primary);
 }
 
 .resource-source-link:hover {
   color: var(--color-accent);
 }
 
+.resource-detail-link:focus-visible,
 .resource-source-link:focus-visible {
   outline: var(--focus-ring-width) solid var(--color-accent);
   outline-offset: var(--space-1);
