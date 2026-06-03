@@ -4,6 +4,7 @@ import {
   fetchCoverage,
   type PublicCoverageResponse,
 } from '../api/coverage-api';
+import { CoverageSummary } from '../components/coverage/CoverageSummary';
 
 type CoveragePageState =
   | { status: 'loading' }
@@ -115,16 +116,7 @@ export function CoveragePage() {
           Revenir au dashboard
         </a>
       </p>
-      <section className="placeholder-panel">
-        <p className="eyebrow">Couverture</p>
-        <h1 id="coverage-title">Sources et technologies suivies</h1>
-        <p>
-          StackVault suit volontairement un perimetre limite pour le MVP. Cette
-          page montre ce qui est couvert, sans pretendre etre exhaustive.
-        </p>
-        <p>{coverage.technologies.length} technologies suivies.</p>
-        <p>{coverage.sources.length} sources declarees.</p>
-      </section>
+      <CoverageSummary coverage={coverage} />
     </main>
   );
 }
