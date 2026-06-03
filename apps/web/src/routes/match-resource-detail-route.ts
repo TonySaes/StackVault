@@ -8,5 +8,13 @@ export function matchResourceDetailRoute(
   const match = pathname.match(/^\/resources\/([^/]+)\/?$/);
   const resourceId = match?.[1];
 
-  return resourceId ? { resourceId: decodeURIComponent(resourceId) } : null;
+  if (!resourceId) {
+    return null;
+  }
+
+  try {
+    return { resourceId: decodeURIComponent(resourceId) };
+  } catch {
+    return null;
+  }
 }
