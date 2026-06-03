@@ -185,3 +185,23 @@ h2 {
   border-radius: var(--radius-md);
   padding: var(--space-4);
 }
+
+@media (max-width: 480px) {
+  .app-shell {
+    width: min(100% - var(--space-5), var(--content-width-page));
+    padding: var(--space-5) 0;
+  }
+
+  .hero-section {
+    padding: var(--space-5) 0;
+  }
+
+  h1 {
+    font-size: clamp(2.25rem, 14vw, 3.5rem);
+  }
+
+  .lede {
+    font-size: var(--font-size-base);
+    line-height: 1.55;
+  }
+}
