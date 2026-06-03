@@ -46,6 +46,13 @@ export interface PaginatedResourcesResponse {
   total: number;
 }
 
+export class ResourceNotFoundError extends Error {
+  constructor(resourceId: string) {
+    super(`Resource not found: ${resourceId}`);
+    this.name = 'ResourceNotFoundError';
+  }
+}
+
 // API transport
 // The URL is configured per environment, with a local fallback for Vite +
 // NestJS development. Dashboard components should call fetchResources()
@@ -61,4 +68,20 @@ export async function fetchResources(): Promise<PaginatedResourcesResponse> {
   }
 
   return (await response.json()) as PaginatedResourcesResponse;
+}
+
+export async function fetchResource(resourceId: string): Promise<PublicResource> {
+  const response = await fetch(
+    `${apiBaseUrl}/resources/${encodeURIComponent(resourceId)}`,
+  );
+
+  if (response.status === 404) {
+    throw new ResourceNotFoundError(resourceId);
+  }
+
+  if (!response.ok) {
+    throw new Error('Resource request failed');
+  }
+
+  return (await response.json()) as PublicResource;
 }
