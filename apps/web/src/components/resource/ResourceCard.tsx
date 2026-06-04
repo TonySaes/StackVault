@@ -1,5 +1,5 @@
 import type { PublicResource } from '../../api/resources-api';
-import { getSourceStatusPresentation } from '../../features/resources/source-status';
+import { getSourceStatusPresentation } from '../../features/sources/source-status';
 import { ResourceTrustBadge } from './ResourceTrustBadge';
 import './ResourceCard.css';
 

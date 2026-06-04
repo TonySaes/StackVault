@@ -9,7 +9,7 @@ interface SourceStatusPresentation {
 
 // Source status presentation
 // The API keeps source statuses technical. Public components use this helper so
-// cards, details and coverage explain the same status with the same wording.
+// resource and coverage views explain the same source status with the same words.
 export function getSourceStatusPresentation(
   sourceStatus: PublicSourceStatus,
 ): SourceStatusPresentation {
@@ -28,6 +28,11 @@ export function getSourceStatusPresentation(
       return {
         label: 'Source en erreur',
         tone: 'danger',
+      };
+    case 'to_verify':
+      return {
+        label: 'Source a verifier',
+        tone: 'warning',
       };
     default:
       return {

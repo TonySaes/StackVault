@@ -79,6 +79,17 @@ const inactiveSourceResourceRecord = {
   },
 };
 
+const sourceToVerifyResourceRecord = {
+  ...publicResourceRecord,
+  id: 'source-to-verify-resource-id',
+  source: {
+    ...publicResourceRecord.source,
+    id: 'source-to-verify-id',
+    name: 'Source To Verify',
+    status: 'to_verify',
+  },
+};
+
 function createPrismaMock(
   resources: unknown[],
   total: number,
@@ -140,14 +151,14 @@ describe('ResourcesService', () => {
       pageSize: '999',
     } as never);
 
-    assert.equal(calls[0]?.skip, 0);
-    assert.equal(calls[0]?.take, 50);
+    assert.strictEqual(calls[0]?.skip, 0);
+    assert.strictEqual(calls[0]?.take, 50);
     assert.deepEqual(calls[0]?.orderBy, [
       { publishedAt: { sort: 'desc', nulls: 'last' } },
       { detectedAt: 'desc' },
     ]);
-    assert.equal(result.pageSize, 50);
-    assert.equal(result.total, 1);
+    assert.strictEqual(result.pageSize, 50);
+    assert.strictEqual(result.total, 1);
     assert.deepEqual(calls[0]?.select.source?.select, publicSourceSelect);
     assert.deepEqual(result.items[0]?.technologies, [
       {
@@ -157,10 +168,10 @@ describe('ResourcesService', () => {
         status: 'active',
       },
     ]);
-    assert.equal('technologyLinks' in result.items[0]!, false);
-    assert.equal('body' in result.items[0]!, false);
-    assert.equal('fullText' in result.items[0]!, false);
-    assert.equal('rawContent' in result.items[0]!, false);
+    assert.strictEqual('technologyLinks' in result.items[0]!, false);
+    assert.strictEqual('body' in result.items[0]!, false);
+    assert.strictEqual('fullText' in result.items[0]!, false);
+    assert.strictEqual('rawContent' in result.items[0]!, false);
     assert.deepEqual(result.items[0]?.source, {
       id: 'source-id',
       name: 'Node.js Blog',
@@ -168,10 +179,10 @@ describe('ResourcesService', () => {
       type: 'public_metadata',
       status: 'active',
     });
-    assert.equal('lastIngestionAt' in result.items[0]!.source, false);
-    assert.equal('lastCheckedAt' in result.items[0]!.source, false);
-    assert.equal('createdAt' in result.items[0]!.source, false);
-    assert.equal('updatedAt' in result.items[0]!.source, false);
+    assert.strictEqual('lastIngestionAt' in result.items[0]!.source, false);
+    assert.strictEqual('lastCheckedAt' in result.items[0]!.source, false);
+    assert.strictEqual('createdAt' in result.items[0]!.source, false);
+    assert.strictEqual('updatedAt' in result.items[0]!.source, false);
   });
 
   it('preserves an inactive source status in the public list contract', async () => {
@@ -183,8 +194,21 @@ describe('ResourcesService', () => {
       pageSize: 20,
     });
 
-    assert.equal(result.items[0]?.source.name, 'Inactive Source');
-    assert.equal(result.items[0]?.source.status, 'inactive');
+    assert.strictEqual(result.items[0]?.source.name, 'Inactive Source');
+    assert.strictEqual(result.items[0]?.source.status, 'inactive');
+  });
+
+  it('preserves a source to verify status in the public list contract', async () => {
+    const { prisma } = createPrismaMock([sourceToVerifyResourceRecord], 1);
+    const service = new ResourcesService(prisma);
+
+    const result = await service.listResources({
+      page: 1,
+      pageSize: 20,
+    });
+
+    assert.strictEqual(result.items[0]?.source.name, 'Source To Verify');
+    assert.strictEqual(result.items[0]?.source.status, 'to_verify');
   });
 
   it('returns one active public resource by id', async () => {
@@ -202,7 +226,7 @@ describe('ResourcesService', () => {
       lifecycleStatus: 'active',
     });
     assert.deepEqual(detailCalls[0]?.select.source?.select, publicSourceSelect);
-    assert.equal(result.id, 'resource-id');
+    assert.strictEqual(result.id, 'resource-id');
     assert.deepEqual(result.technologies, [
       {
         id: 'technology-id',
@@ -211,7 +235,7 @@ describe('ResourcesService', () => {
         status: 'active',
       },
     ]);
-    assert.equal('technologyLinks' in result, false);
+    assert.strictEqual('technologyLinks' in result, false);
   });
 
   it('throws a not found exception when the public resource does not exist', async () => {

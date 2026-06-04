@@ -3,7 +3,7 @@ import type {
   PublicCoverageSource,
   PublicCoverageTechnology,
 } from '../../api/coverage-api';
-import { getSourceStatusPresentation } from '../../features/resources/source-status';
+import { getSourceStatusPresentation } from '../../features/sources/source-status';
 import './CoverageSummary.css';
 
 interface CoverageSummaryProps {
