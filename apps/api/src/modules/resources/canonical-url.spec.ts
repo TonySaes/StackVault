@@ -13,4 +13,19 @@ describe('normalizeCanonicalUrl', () => {
       'https://example.com/releases?version=2',
     );
   });
+
+  it('sorts meaningful query parameters deterministically', () => {
+    const canonicalUrl = normalizeCanonicalUrl(
+      'https://example.com/releases?version=2&channel=stable',
+    );
+
+    assert.strictEqual(
+      canonicalUrl,
+      'https://example.com/releases?channel=stable&version=2',
+    );
+  });
+
+  it('throws when the raw URL is invalid', () => {
+    assert.throws(() => normalizeCanonicalUrl('not a valid url'), TypeError);
+  });
 });
