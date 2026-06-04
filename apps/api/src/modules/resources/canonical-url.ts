@@ -10,8 +10,9 @@ function isTrackingQueryKey(queryKey: string) {
 }
 
 // Canonical URL normalization
-// We only remove variants that usually come from tracking. Business query
-// parameters stay in place because some sources use them to identify content.
+// Keep the rule local and predictable: strip browser/tracking-only variants
+// (hash, utm_*, fbclid, gclid), keep business query params, sort them for
+// stable upserts, and fail fast when Node cannot parse the URL.
 export function normalizeCanonicalUrl(rawUrl: string): string {
   const url = new URL(rawUrl.trim());
 
