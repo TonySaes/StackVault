@@ -3,6 +3,7 @@ import type {
   PublicCoverageSource,
   PublicCoverageTechnology,
 } from '../../api/coverage-api';
+import { getSourceStatusPresentation } from '../../features/resources/source-status';
 import './CoverageSummary.css';
 
 interface CoverageSummaryProps {
@@ -10,16 +11,7 @@ interface CoverageSummaryProps {
 }
 
 function formatSourceStatus(source: PublicCoverageSource) {
-  switch (source.status) {
-    case 'active':
-      return 'Source active';
-    case 'inactive':
-      return 'Source inactive';
-    case 'error':
-      return 'Source en erreur';
-    default:
-      return 'Statut a verifier';
-  }
+  return getSourceStatusPresentation(source.status).label;
 }
 
 function formatTechnologyStatus(technology: PublicCoverageTechnology) {

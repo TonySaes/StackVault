@@ -1,4 +1,5 @@
 import type { PublicResource } from '../../api/resources-api';
+import { getSourceStatusPresentation } from '../../features/resources/source-status';
 import './ResourceDetail.css';
 
 interface ResourceDetailProps {
@@ -21,19 +22,6 @@ function formatTechnologies(resource: PublicResource) {
   }
 
   return resource.technologies.map((technology) => technology.name).join(', ');
-}
-
-function formatSourceStatus(sourceStatus: string) {
-  switch (sourceStatus) {
-    case 'active':
-      return 'Source active';
-    case 'inactive':
-      return 'Source inactive';
-    case 'error':
-      return 'Source en erreur';
-    default:
-      return 'Source a verifier';
-  }
 }
 
 function formatLinkStatus(linkStatus: string) {
@@ -69,7 +57,7 @@ export function ResourceDetail({ resource }: ResourceDetailProps) {
         </div>
         <div>
           <dt>Statut de la source</dt>
-          <dd>{formatSourceStatus(resource.source.status)}</dd>
+          <dd>{getSourceStatusPresentation(resource.source.status).label}</dd>
         </div>
         <div>
           <dt>URL source</dt>

@@ -1,4 +1,5 @@
 import type { PublicResource } from '../../api/resources-api';
+import { getSourceStatusPresentation } from '../../features/resources/source-status';
 import { ResourceTrustBadge } from './ResourceTrustBadge';
 import './ResourceCard.css';
 
@@ -32,28 +33,7 @@ function buildResourceDetailPath(resource: PublicResource) {
 }
 
 function getSourceTrustBadge(resource: PublicResource) {
-  switch (resource.source.status) {
-    case 'active':
-      return {
-        label: 'Source active',
-        tone: 'verified' as const,
-      };
-    case 'inactive':
-      return {
-        label: 'Source inactive',
-        tone: 'neutral' as const,
-      };
-    case 'error':
-      return {
-        label: 'Source en erreur',
-        tone: 'danger' as const,
-      };
-    default:
-      return {
-        label: 'Source a verifier',
-        tone: 'warning' as const,
-      };
-  }
+  return getSourceStatusPresentation(resource.source.status);
 }
 
 function getFreshnessBadge(resource: PublicResource) {
