@@ -1,5 +1,4 @@
-import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
+import { assert, describe, expect, it } from 'vitest';
 
 import { NotFoundException } from '@nestjs/common';
 
@@ -219,9 +218,8 @@ describe('ResourcesService', () => {
     const { prisma } = createPrismaMock([], 0, null);
     const service = new ResourcesService(prisma);
 
-    await assert.rejects(
-      () => service.getResourceById('missing-resource-id'),
-      NotFoundException,
-    );
+    await expect(
+      service.getResourceById('missing-resource-id'),
+    ).rejects.toBeInstanceOf(NotFoundException);
   });
 });

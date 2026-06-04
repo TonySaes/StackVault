@@ -6,7 +6,7 @@
   "scripts": {
     "lint": "echo \"No api lint configured yet\"",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "tsx --test \"src/**/*.spec.ts\"",
+    "test": "vitest run",
     "build": "tsc -p tsconfig.build.json",
     "dev": "tsx src/main.ts",
     "start": "node dist/main.js",
@@ -32,6 +32,7 @@
     "@types/pg": "^8.20.0",
     "prisma": "^6.19.3",
     "tsx": "^4.22.3",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.8"
   }
 }
