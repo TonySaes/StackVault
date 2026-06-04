@@ -1,3 +1,5 @@
+import type { PublicSourceStatus } from './source-status';
+
 // Public resources API contract
 // These interfaces mirror the JSON returned by GET /api/v1/resources.
 // They stay close to the backend response so UI components can depend on a
@@ -7,7 +9,7 @@ export interface PublicResourceSource {
   name: string;
   url: string;
   type: string;
-  status: string;
+  status: PublicSourceStatus;
 }
 
 export interface PublicResourceCategory {

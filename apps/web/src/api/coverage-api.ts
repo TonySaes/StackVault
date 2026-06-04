@@ -1,3 +1,5 @@
+import type { PublicSourceStatus } from './source-status';
+
 // Public coverage API contract
 // This file mirrors GET /api/v1/coverage and keeps HTTP details out of pages
 // and coverage components.
@@ -13,7 +15,7 @@ export interface PublicCoverageSource {
   name: string;
   url: string;
   type: string;
-  status: string;
+  status: PublicSourceStatus;
 }
 
 export interface PublicCoverageResponse {

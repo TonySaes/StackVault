@@ -1,3 +1,5 @@
+import type { PublicSourceStatus } from '../../api/source-status';
+
 type SourceStatusTone = 'verified' | 'warning' | 'danger' | 'neutral';
 
 interface SourceStatusPresentation {
@@ -9,7 +11,7 @@ interface SourceStatusPresentation {
 // The API keeps source statuses technical. Public components use this helper so
 // cards, details and coverage explain the same status with the same wording.
 export function getSourceStatusPresentation(
-  sourceStatus: string,
+  sourceStatus: PublicSourceStatus,
 ): SourceStatusPresentation {
   switch (sourceStatus) {
     case 'active':
