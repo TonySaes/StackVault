@@ -1,5 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 
+import { normalizeCanonicalUrl } from '../src/modules/resources/canonical-url.js';
+
 const prisma = new PrismaClient();
 
 const demoCategories = [
@@ -163,10 +165,11 @@ async function main() {
         slug: demoResource.technologySlug,
       },
     });
+    const canonicalUrl = normalizeCanonicalUrl(demoResource.canonicalUrl);
 
     const resource = await prisma.resource.upsert({
       where: {
-        canonicalUrl: demoResource.canonicalUrl,
+        canonicalUrl,
       },
       update: {
         sourceId: source.id,
@@ -183,7 +186,7 @@ async function main() {
         categoryId: category.id,
         title: demoResource.title,
         sourceUrl: demoResource.sourceUrl,
-        canonicalUrl: demoResource.canonicalUrl,
+        canonicalUrl,
         publishedAt: demoResource.publishedAt,
         shortSummary: demoResource.shortSummary,
         lifecycleStatus: 'active',
