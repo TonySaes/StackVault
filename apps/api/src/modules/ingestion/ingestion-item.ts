@@ -17,6 +17,8 @@ export interface IngestionSourceReference {
   type: string;
 }
 
+export const MAX_INGESTION_SHORT_SUMMARY_LENGTH = 500;
+
 // Forbidden third-party body fields
 // These keys are blocked because StackVault may keep metadata and summaries,
 // but must not persist complete third-party content bodies.
@@ -25,10 +27,19 @@ export const FORBIDDEN_INGESTION_BODY_FIELDS = [
   'rawContent',
   'html',
   'fullText',
+  'content',
+  'articleBody',
+  'bodyHtml',
+  'rawHtml',
+  'markdown',
 ] as const;
 
 export type ForbiddenIngestionBodyField =
   (typeof FORBIDDEN_INGESTION_BODY_FIELDS)[number];
+
+const FORBIDDEN_INGESTION_BODY_FIELD_KEYS = new Set(
+  FORBIDDEN_INGESTION_BODY_FIELDS.map((field) => field.toLowerCase()),
+);
 
 // Validation result shape
 // Runtime validation will use these small codes so errors stay actionable
@@ -38,7 +49,10 @@ export type IngestionItemErrorCode =
   | 'sourceUrl.required'
   | 'sourceUrl.invalid'
   | 'source.required'
+  | 'source.url.invalid'
   | 'candidateTechnologies.invalid'
+  | 'publishedAt.invalid'
+  | 'shortSummary.tooLong'
   | 'thirdPartyBody.forbidden';
 
 export interface IngestionItemValidationError {
@@ -64,23 +78,43 @@ function isNonEmptyString(input: unknown): input is string {
   return typeof input === 'string' && input.trim().length > 0;
 }
 
-function isValidUrl(input: string): boolean {
+function isPublicHttpUrl(input: string): boolean {
   try {
-    new URL(input);
+    const url = new URL(input);
 
-    return true;
+    // `new URL()` accepts schemes such as `javascript:` or `data:`.
+    // Public resource links must stay navigable web URLs only.
+    return url.protocol === 'http:' || url.protocol === 'https:';
   } catch {
     return false;
   }
 }
 
-function isValidSourceReference(input: unknown): input is IngestionSourceReference {
+function hasSourceReferenceShape(
+  input: unknown,
+): input is IngestionSourceReference {
   return (
     isRecord(input) &&
     isNonEmptyString(input.name) &&
     isNonEmptyString(input.url) &&
     isNonEmptyString(input.type)
   );
+}
+
+function isValidPublishedAt(input: unknown): boolean {
+  if (input === null || input === undefined) {
+    return true;
+  }
+
+  if (input instanceof Date) {
+    return !Number.isNaN(input.getTime());
+  }
+
+  return typeof input === 'string' && !Number.isNaN(Date.parse(input));
+}
+
+function hasForbiddenBodyField(field: string): boolean {
+  return FORBIDDEN_INGESTION_BODY_FIELD_KEYS.has(field.toLowerCase());
 }
 
 // Runtime validation
@@ -106,8 +140,8 @@ export function validateIngestionItem(
     };
   }
 
-  for (const field of FORBIDDEN_INGESTION_BODY_FIELDS) {
-    if (field in input) {
+  for (const field of Object.keys(input)) {
+    if (hasForbiddenBodyField(field)) {
       errors.push({
         code: 'thirdPartyBody.forbidden',
         field,
@@ -121,12 +155,14 @@ export function validateIngestionItem(
 
   if (!isNonEmptyString(input.sourceUrl)) {
     errors.push({ code: 'sourceUrl.required', field: 'sourceUrl' });
-  } else if (!isValidUrl(input.sourceUrl)) {
+  } else if (!isPublicHttpUrl(input.sourceUrl)) {
     errors.push({ code: 'sourceUrl.invalid', field: 'sourceUrl' });
   }
 
-  if (!isValidSourceReference(input.source)) {
+  if (!hasSourceReferenceShape(input.source)) {
     errors.push({ code: 'source.required', field: 'source' });
+  } else if (!isPublicHttpUrl(input.source.url)) {
+    errors.push({ code: 'source.url.invalid', field: 'source.url' });
   }
 
   if (
@@ -141,6 +177,17 @@ export function validateIngestionItem(
     });
   }
 
+  if (!isValidPublishedAt(input.publishedAt)) {
+    errors.push({ code: 'publishedAt.invalid', field: 'publishedAt' });
+  }
+
+  if (
+    typeof input.shortSummary === 'string' &&
+    input.shortSummary.length > MAX_INGESTION_SHORT_SUMMARY_LENGTH
+  ) {
+    errors.push({ code: 'shortSummary.tooLong', field: 'shortSummary' });
+  }
+
   if (errors.length > 0) {
     return {
       success: false,
@@ -148,10 +195,16 @@ export function validateIngestionItem(
     };
   }
 
+  const source = input.source as IngestionSourceReference;
+
   const item: IngestionItem = {
     title: input.title as string,
     sourceUrl: input.sourceUrl as string,
-    source: input.source as IngestionSourceReference,
+    source: {
+      name: source.name,
+      url: source.url,
+      type: source.type,
+    },
     candidateCategory: isNonEmptyString(input.candidateCategory)
       ? input.candidateCategory
       : null,
