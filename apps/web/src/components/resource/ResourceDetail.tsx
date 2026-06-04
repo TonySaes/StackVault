@@ -23,6 +23,19 @@ function formatTechnologies(resource: PublicResource) {
   return resource.technologies.map((technology) => technology.name).join(', ');
 }
 
+function formatSourceStatus(sourceStatus: string) {
+  switch (sourceStatus) {
+    case 'active':
+      return 'Source active';
+    case 'inactive':
+      return 'Source inactive';
+    case 'error':
+      return 'Source en erreur';
+    default:
+      return 'Source a verifier';
+  }
+}
+
 function formatLinkStatus(linkStatus: string) {
   switch (linkStatus) {
     case 'active':
@@ -53,6 +66,10 @@ export function ResourceDetail({ resource }: ResourceDetailProps) {
         <div>
           <dt>Source</dt>
           <dd>{resource.source.name}</dd>
+        </div>
+        <div>
+          <dt>Statut de la source</dt>
+          <dd>{formatSourceStatus(resource.source.status)}</dd>
         </div>
         <div>
           <dt>URL source</dt>
