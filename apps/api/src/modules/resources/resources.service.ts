@@ -50,6 +50,17 @@ export interface PaginatedResourcesResponse {
   total: number;
 }
 
+// Public source contract
+// A source registered in `sources` is the MVP allowlist entry. Keep this select
+// deliberately small so ingestion/admin fields never leak through resources.
+const publicResourceSourceSelect = {
+  id: true,
+  name: true,
+  url: true,
+  type: true,
+  status: true,
+} as const;
+
 @Injectable()
 export class ResourcesService {
   constructor(
@@ -85,13 +96,7 @@ export class ResourcesService {
           lifecycleStatus: true,
           linkStatus: true,
           source: {
-            select: {
-              id: true,
-              name: true,
-              url: true,
-              type: true,
-              status: true,
-            },
+            select: publicResourceSourceSelect,
           },
           category: {
             select: {
@@ -152,13 +157,7 @@ export class ResourcesService {
         lifecycleStatus: true,
         linkStatus: true,
         source: {
-          select: {
-            id: true,
-            name: true,
-            url: true,
-            type: true,
-            status: true,
-          },
+          select: publicResourceSourceSelect,
         },
         category: {
           select: {

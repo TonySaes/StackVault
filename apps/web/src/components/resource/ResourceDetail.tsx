@@ -1,4 +1,5 @@
 import type { PublicResource } from '../../api/resources-api';
+import { getSourceStatusPresentation } from '../../features/sources/source-status';
 import './ResourceDetail.css';
 
 interface ResourceDetailProps {
@@ -53,6 +54,10 @@ export function ResourceDetail({ resource }: ResourceDetailProps) {
         <div>
           <dt>Source</dt>
           <dd>{resource.source.name}</dd>
+        </div>
+        <div>
+          <dt>Statut de la source</dt>
+          <dd>{getSourceStatusPresentation(resource.source.status).label}</dd>
         </div>
         <div>
           <dt>URL source</dt>

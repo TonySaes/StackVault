@@ -1,5 +1,4 @@
-import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
+import { assert, describe, it } from 'vitest';
 
 import 'reflect-metadata';
 import { plainToInstance } from 'class-transformer';
@@ -21,7 +20,7 @@ describe('ListResourcesQueryDto', () => {
     const validationErrors = await validate(query);
     const normalizedQuery = normalizeListResourcesQuery(query);
 
-    assert.equal(validationErrors.length, 0);
-    assert.equal(normalizedQuery.pageSize, MAX_RESOURCES_PAGE_SIZE);
+    assert.strictEqual(validationErrors.length, 0);
+    assert.strictEqual(normalizedQuery.pageSize, MAX_RESOURCES_PAGE_SIZE);
   });
 });

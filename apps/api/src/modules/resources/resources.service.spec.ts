@@ -1,5 +1,4 @@
-import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
+import { assert, describe, expect, it } from 'vitest';
 
 import { NotFoundException } from '@nestjs/common';
 
@@ -8,13 +7,31 @@ import { ResourcesService } from './resources.service.js';
 
 interface PrismaResourceFindManyArgs {
   orderBy: unknown;
+  select: {
+    source?: {
+      select?: Record<string, boolean>;
+    };
+  };
   skip: number;
   take: number;
 }
 
 interface PrismaResourceFindFirstArgs {
+  select: {
+    source?: {
+      select?: Record<string, boolean>;
+    };
+  };
   where: unknown;
 }
+
+const publicSourceSelect = {
+  id: true,
+  name: true,
+  url: true,
+  type: true,
+  status: true,
+};
 
 const publicResourceRecord = {
   id: 'resource-id',
@@ -49,6 +66,28 @@ const publicResourceRecord = {
       },
     },
   ],
+};
+
+const inactiveSourceResourceRecord = {
+  ...publicResourceRecord,
+  id: 'inactive-source-resource-id',
+  source: {
+    ...publicResourceRecord.source,
+    id: 'inactive-source-id',
+    name: 'Inactive Source',
+    status: 'inactive',
+  },
+};
+
+const sourceToVerifyResourceRecord = {
+  ...publicResourceRecord,
+  id: 'source-to-verify-resource-id',
+  source: {
+    ...publicResourceRecord.source,
+    id: 'source-to-verify-id',
+    name: 'Source To Verify',
+    status: 'to_verify',
+  },
 };
 
 function createPrismaMock(
@@ -112,14 +151,15 @@ describe('ResourcesService', () => {
       pageSize: '999',
     } as never);
 
-    assert.equal(calls[0]?.skip, 0);
-    assert.equal(calls[0]?.take, 50);
+    assert.strictEqual(calls[0]?.skip, 0);
+    assert.strictEqual(calls[0]?.take, 50);
     assert.deepEqual(calls[0]?.orderBy, [
       { publishedAt: { sort: 'desc', nulls: 'last' } },
       { detectedAt: 'desc' },
     ]);
-    assert.equal(result.pageSize, 50);
-    assert.equal(result.total, 1);
+    assert.strictEqual(result.pageSize, 50);
+    assert.strictEqual(result.total, 1);
+    assert.deepEqual(calls[0]?.select.source?.select, publicSourceSelect);
     assert.deepEqual(result.items[0]?.technologies, [
       {
         id: 'technology-id',
@@ -128,10 +168,47 @@ describe('ResourcesService', () => {
         status: 'active',
       },
     ]);
-    assert.equal('technologyLinks' in result.items[0]!, false);
-    assert.equal('body' in result.items[0]!, false);
-    assert.equal('fullText' in result.items[0]!, false);
-    assert.equal('rawContent' in result.items[0]!, false);
+    assert.strictEqual('technologyLinks' in result.items[0]!, false);
+    assert.strictEqual('body' in result.items[0]!, false);
+    assert.strictEqual('fullText' in result.items[0]!, false);
+    assert.strictEqual('rawContent' in result.items[0]!, false);
+    assert.deepEqual(result.items[0]?.source, {
+      id: 'source-id',
+      name: 'Node.js Blog',
+      url: 'https://nodejs.org/en/blog',
+      type: 'public_metadata',
+      status: 'active',
+    });
+    assert.strictEqual('lastIngestionAt' in result.items[0]!.source, false);
+    assert.strictEqual('lastCheckedAt' in result.items[0]!.source, false);
+    assert.strictEqual('createdAt' in result.items[0]!.source, false);
+    assert.strictEqual('updatedAt' in result.items[0]!.source, false);
+  });
+
+  it('preserves an inactive source status in the public list contract', async () => {
+    const { prisma } = createPrismaMock([inactiveSourceResourceRecord], 1);
+    const service = new ResourcesService(prisma);
+
+    const result = await service.listResources({
+      page: 1,
+      pageSize: 20,
+    });
+
+    assert.strictEqual(result.items[0]?.source.name, 'Inactive Source');
+    assert.strictEqual(result.items[0]?.source.status, 'inactive');
+  });
+
+  it('preserves a source to verify status in the public list contract', async () => {
+    const { prisma } = createPrismaMock([sourceToVerifyResourceRecord], 1);
+    const service = new ResourcesService(prisma);
+
+    const result = await service.listResources({
+      page: 1,
+      pageSize: 20,
+    });
+
+    assert.strictEqual(result.items[0]?.source.name, 'Source To Verify');
+    assert.strictEqual(result.items[0]?.source.status, 'to_verify');
   });
 
   it('returns one active public resource by id', async () => {
@@ -148,7 +225,8 @@ describe('ResourcesService', () => {
       id: 'resource-id',
       lifecycleStatus: 'active',
     });
-    assert.equal(result.id, 'resource-id');
+    assert.deepEqual(detailCalls[0]?.select.source?.select, publicSourceSelect);
+    assert.strictEqual(result.id, 'resource-id');
     assert.deepEqual(result.technologies, [
       {
         id: 'technology-id',
@@ -157,16 +235,15 @@ describe('ResourcesService', () => {
         status: 'active',
       },
     ]);
-    assert.equal('technologyLinks' in result, false);
+    assert.strictEqual('technologyLinks' in result, false);
   });
 
   it('throws a not found exception when the public resource does not exist', async () => {
     const { prisma } = createPrismaMock([], 0, null);
     const service = new ResourcesService(prisma);
 
-    await assert.rejects(
-      () => service.getResourceById('missing-resource-id'),
-      NotFoundException,
-    );
+    await expect(
+      service.getResourceById('missing-resource-id'),
+    ).rejects.toBeInstanceOf(NotFoundException);
   });
 });
