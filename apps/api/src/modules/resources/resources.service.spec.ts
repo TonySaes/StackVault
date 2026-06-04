@@ -8,13 +8,31 @@ import { ResourcesService } from './resources.service.js';
 
 interface PrismaResourceFindManyArgs {
   orderBy: unknown;
+  select: {
+    source?: {
+      select?: Record<string, boolean>;
+    };
+  };
   skip: number;
   take: number;
 }
 
 interface PrismaResourceFindFirstArgs {
+  select: {
+    source?: {
+      select?: Record<string, boolean>;
+    };
+  };
   where: unknown;
 }
+
+const publicSourceSelect = {
+  id: true,
+  name: true,
+  url: true,
+  type: true,
+  status: true,
+};
 
 const publicResourceRecord = {
   id: 'resource-id',
@@ -49,6 +67,17 @@ const publicResourceRecord = {
       },
     },
   ],
+};
+
+const inactiveSourceResourceRecord = {
+  ...publicResourceRecord,
+  id: 'inactive-source-resource-id',
+  source: {
+    ...publicResourceRecord.source,
+    id: 'inactive-source-id',
+    name: 'Inactive Source',
+    status: 'inactive',
+  },
 };
 
 function createPrismaMock(
@@ -120,6 +149,7 @@ describe('ResourcesService', () => {
     ]);
     assert.equal(result.pageSize, 50);
     assert.equal(result.total, 1);
+    assert.deepEqual(calls[0]?.select.source?.select, publicSourceSelect);
     assert.deepEqual(result.items[0]?.technologies, [
       {
         id: 'technology-id',
@@ -132,6 +162,30 @@ describe('ResourcesService', () => {
     assert.equal('body' in result.items[0]!, false);
     assert.equal('fullText' in result.items[0]!, false);
     assert.equal('rawContent' in result.items[0]!, false);
+    assert.deepEqual(result.items[0]?.source, {
+      id: 'source-id',
+      name: 'Node.js Blog',
+      url: 'https://nodejs.org/en/blog',
+      type: 'public_metadata',
+      status: 'active',
+    });
+    assert.equal('lastIngestionAt' in result.items[0]!.source, false);
+    assert.equal('lastCheckedAt' in result.items[0]!.source, false);
+    assert.equal('createdAt' in result.items[0]!.source, false);
+    assert.equal('updatedAt' in result.items[0]!.source, false);
+  });
+
+  it('preserves an inactive source status in the public list contract', async () => {
+    const { prisma } = createPrismaMock([inactiveSourceResourceRecord], 1);
+    const service = new ResourcesService(prisma);
+
+    const result = await service.listResources({
+      page: 1,
+      pageSize: 20,
+    });
+
+    assert.equal(result.items[0]?.source.name, 'Inactive Source');
+    assert.equal(result.items[0]?.source.status, 'inactive');
   });
 
   it('returns one active public resource by id', async () => {
@@ -148,6 +202,7 @@ describe('ResourcesService', () => {
       id: 'resource-id',
       lifecycleStatus: 'active',
     });
+    assert.deepEqual(detailCalls[0]?.select.source?.select, publicSourceSelect);
     assert.equal(result.id, 'resource-id');
     assert.deepEqual(result.technologies, [
       {
