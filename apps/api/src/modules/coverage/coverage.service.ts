@@ -22,6 +22,17 @@ export interface PublicCoverageResponse {
   sources: PublicCoverageSource[];
 }
 
+// Public coverage contract
+// Coverage exposes the source allowlist perimeter, but not ingestion/admin
+// timestamps. Those diagnostics belong to future admin views.
+const publicCoverageSourceSelect = {
+  id: true,
+  name: true,
+  url: true,
+  type: true,
+  status: true,
+} as const;
+
 @Injectable()
 export class CoverageService {
   constructor(
@@ -46,13 +57,7 @@ export class CoverageService {
         orderBy: {
           name: 'asc',
         },
-        select: {
-          id: true,
-          name: true,
-          url: true,
-          type: true,
-          status: true,
-        },
+        select: publicCoverageSourceSelect,
       }),
     ]);
 

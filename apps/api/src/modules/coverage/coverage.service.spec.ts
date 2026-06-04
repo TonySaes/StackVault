@@ -5,8 +5,16 @@ import { CoverageService } from './coverage.service.js';
 
 interface PrismaFindManyArgs {
   orderBy: unknown;
-  select: unknown;
+  select: Record<string, boolean>;
 }
+
+const publicCoverageSourceSelect = {
+  id: true,
+  name: true,
+  url: true,
+  type: true,
+  status: true,
+};
 
 function createPrismaMock(technologies: unknown[], sources: unknown[]) {
   const technologyCalls: PrismaFindManyArgs[] = [];
@@ -74,6 +82,7 @@ describe('CoverageService', () => {
 
     assert.deepEqual(technologyCalls[0]?.orderBy, { name: 'asc' });
     assert.deepEqual(sourceCalls[0]?.orderBy, { name: 'asc' });
+    assert.deepEqual(sourceCalls[0]?.select, publicCoverageSourceSelect);
     assert.deepEqual(result, {
       technologies: [technology],
       sources: [source],
@@ -82,5 +91,7 @@ describe('CoverageService', () => {
     assert.equal('updatedAt' in result.technologies[0]!, false);
     assert.equal('lastIngestionAt' in result.sources[0]!, false);
     assert.equal('lastCheckedAt' in result.sources[0]!, false);
+    assert.equal('createdAt' in result.sources[0]!, false);
+    assert.equal('updatedAt' in result.sources[0]!, false);
   });
 });

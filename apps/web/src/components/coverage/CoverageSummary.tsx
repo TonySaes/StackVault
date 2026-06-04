@@ -16,7 +16,7 @@ function formatSourceStatus(source: PublicCoverageSource) {
     case 'inactive':
       return 'Source inactive';
     case 'error':
-      return 'Source a verifier';
+      return 'Source en erreur';
     default:
       return 'Statut a verifier';
   }
