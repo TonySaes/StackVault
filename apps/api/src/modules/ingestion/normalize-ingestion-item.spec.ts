@@ -103,6 +103,23 @@ describe('normalizeIngestionItem', () => {
     }
   });
 
+  it('matches candidate categories without trusting casing or surrounding spaces', () => {
+    const result = normalizeIngestionItem(
+      {
+        ...validIngestionItem,
+        candidateCategory: ' Release ',
+      },
+      normalizationContext,
+    );
+
+    assert.strictEqual(result.success, true);
+
+    if (result.success) {
+      assert.strictEqual(result.draft.categoryId, 'category-release');
+      assert.deepEqual(result.warnings, []);
+    }
+  });
+
   it('ignores unknown candidate technologies and reports a non-sensitive warning', () => {
     const result = normalizeIngestionItem(
       {
@@ -125,6 +142,42 @@ describe('normalizeIngestionItem', () => {
     }
   });
 
+  it('deduplicates technologies that resolve to the same id', () => {
+    const result = normalizeIngestionItem(
+      {
+        ...validIngestionItem,
+        candidateTechnologies: ['React', 'react'],
+      },
+      normalizationContext,
+    );
+
+    assert.strictEqual(result.success, true);
+
+    if (result.success) {
+      assert.deepEqual(result.draft.technologyIds, ['technology-react']);
+      assert.deepEqual(result.warnings, []);
+    }
+  });
+
+  it('matches allowlisted source URLs through canonical normalization', () => {
+    const result = normalizeIngestionItem(
+      {
+        ...validIngestionItem,
+        source: {
+          ...validIngestionItem.source,
+          url: 'https://react.dev/blog/',
+        },
+      },
+      normalizationContext,
+    );
+
+    assert.strictEqual(result.success, true);
+
+    if (result.success) {
+      assert.strictEqual(result.draft.sourceId, 'source-react-blog');
+    }
+  });
+
   it('returns a non-sensitive error when the source is not allowlisted', () => {
     const result = normalizeIngestionItem(validIngestionItem, {
       ...normalizationContext,
@@ -138,6 +191,27 @@ describe('normalizeIngestionItem', () => {
         {
           code: 'source.notAllowlisted',
           field: 'source',
+        },
+      ]);
+    }
+  });
+
+  it('returns a non-sensitive error when publication date cannot be normalized', () => {
+    const result = normalizeIngestionItem(
+      {
+        ...validIngestionItem,
+        publishedAt: new Date('not-a-date'),
+      },
+      normalizationContext,
+    );
+
+    assert.strictEqual(result.success, false);
+
+    if (!result.success) {
+      assert.deepEqual(result.errors, [
+        {
+          code: 'publishedAt.invalid',
+          field: 'publishedAt',
         },
       ]);
     }

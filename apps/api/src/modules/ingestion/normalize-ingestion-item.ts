@@ -80,6 +80,10 @@ function normalizeLookupValue(value: string): string {
   return value.trim().toLowerCase();
 }
 
+function canonicalizeComparableUrl(rawUrl: string): string {
+  return normalizeCanonicalUrl(rawUrl);
+}
+
 function parsePublishedAt(publishedAt: IngestionItem['publishedAt']): Date | null {
   if (publishedAt === undefined || publishedAt === null) {
     return null;
@@ -99,8 +103,10 @@ export function normalizeIngestionItem(
   item: IngestionItem,
   context: IngestionNormalizationContext,
 ): IngestionNormalizationResult {
+  const normalizedSourceUrl = canonicalizeComparableUrl(item.source.url);
   const source = context.sources.find(
-    (candidateSource) => candidateSource.url === item.source.url,
+    (candidateSource) =>
+      canonicalizeComparableUrl(candidateSource.url) === normalizedSourceUrl,
   );
 
   if (!source) {
@@ -114,6 +120,15 @@ export function normalizeIngestionItem(
     return {
       success: false,
       errors: [{ code: 'source.inactive', field: 'source' }],
+    };
+  }
+
+  const publishedAt = parsePublishedAt(item.publishedAt);
+
+  if (publishedAt !== null && Number.isNaN(publishedAt.getTime())) {
+    return {
+      success: false,
+      errors: [{ code: 'publishedAt.invalid', field: 'publishedAt' }],
     };
   }
 
@@ -135,7 +150,8 @@ export function normalizeIngestionItem(
     context.categories.find(
       (candidateCategory) =>
         item.candidateCategory !== null &&
-        candidateCategory.slug === item.candidateCategory,
+        normalizeLookupValue(candidateCategory.slug) ===
+          normalizeLookupValue(item.candidateCategory),
     ) ?? fallbackCategory;
 
   if (category === fallbackCategory && item.candidateCategory !== null) {
@@ -161,8 +177,10 @@ export function normalizeIngestionItem(
   }
 
   let hasUnmatchedTechnology = false;
+  const technologyIds: string[] = [];
+  const seenTechnologyIds = new Set<string>();
 
-  const technologyIds = item.candidateTechnologies.flatMap((technology) => {
+  for (const technology of item.candidateTechnologies) {
     const technologyId = technologiesBySlugOrName.get(
       normalizeLookupValue(technology),
     );
@@ -170,11 +188,14 @@ export function normalizeIngestionItem(
     if (!technologyId) {
       hasUnmatchedTechnology = true;
 
-      return [];
+      continue;
     }
 
-    return [technologyId];
-  });
+    if (!seenTechnologyIds.has(technologyId)) {
+      seenTechnologyIds.add(technologyId);
+      technologyIds.push(technologyId);
+    }
+  }
 
   if (hasUnmatchedTechnology) {
     warnings.push({
@@ -191,7 +212,7 @@ export function normalizeIngestionItem(
       title: item.title,
       sourceUrl: item.sourceUrl,
       canonicalUrl: normalizeCanonicalUrl(item.sourceUrl),
-      publishedAt: parsePublishedAt(item.publishedAt),
+      publishedAt,
       shortSummary: item.shortSummary ?? null,
       lifecycleStatus: 'active',
       linkStatus: 'unknown',
