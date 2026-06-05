@@ -33,6 +33,66 @@ export interface ManualDemoIngestionDependencies {
   persistence: ManualDemoIngestionPersistencePort;
 }
 
+// Context resolution boundary
+// PrismaService matches this shape, but tests can provide a smaller in-memory
+// object. The ingestion flow only needs read access to public catalog metadata.
+interface ManualDemoIngestionCatalogSourceRecord {
+  id: string;
+  name: string;
+  url: string;
+  status: string;
+}
+
+interface ManualDemoIngestionCatalogCategoryRecord {
+  id: string;
+  slug: string;
+  name: string;
+}
+
+interface ManualDemoIngestionCatalogTechnologyRecord {
+  id: string;
+  slug: string;
+  name: string;
+  status: string;
+}
+
+export interface ManualDemoIngestionCatalogReader {
+  source: {
+    findMany(args: {
+      where: { status: 'active' };
+      orderBy: { name: 'asc' };
+      select: {
+        id: true;
+        name: true;
+        url: true;
+        status: true;
+      };
+    }): Promise<ManualDemoIngestionCatalogSourceRecord[]>;
+  };
+  category: {
+    findMany(args: {
+      orderBy: { slug: 'asc' };
+      select: {
+        id: true;
+        slug: true;
+        name: true;
+      };
+    }): Promise<ManualDemoIngestionCatalogCategoryRecord[]>;
+  };
+  technology: {
+    findMany(args: {
+      where: { status: 'active' };
+      orderBy: { name: 'asc' };
+      select: {
+        id: true;
+        slug: true;
+        name: true;
+        status: true;
+      };
+    }): Promise<ManualDemoIngestionCatalogTechnologyRecord[]>;
+  };
+}
+
 export interface ManualDemoIngestionDuplicateIssue {
   code: 'canonicalUrl.duplicate';
   field: 'canonicalUrl';
@@ -69,6 +129,65 @@ export interface ManualDemoIngestionReport {
   updatedCount: number;
   skippedCount: number;
   items: ManualDemoIngestionItemReport[];
+}
+
+const DEFAULT_MANUAL_DEMO_FALLBACK_CATEGORY_SLUG = 'trend';
+
+// Prisma catalog context
+// This read-only mapper converts the database catalog into the pure
+// normalization context. It does not fetch articles, write resources or trigger
+// scheduled ingestion.
+export async function loadManualDemoIngestionContext(
+  catalog: ManualDemoIngestionCatalogReader,
+  fallbackCategorySlug = DEFAULT_MANUAL_DEMO_FALLBACK_CATEGORY_SLUG,
+): Promise<IngestionNormalizationContext> {
+  const [sources, categories, technologies] = await Promise.all([
+    catalog.source.findMany({
+      where: {
+        status: 'active',
+      },
+      orderBy: {
+        name: 'asc',
+      },
+      select: {
+        id: true,
+        name: true,
+        url: true,
+        status: true,
+      },
+    }),
+    catalog.category.findMany({
+      orderBy: {
+        slug: 'asc',
+      },
+      select: {
+        id: true,
+        slug: true,
+        name: true,
+      },
+    }),
+    catalog.technology.findMany({
+      where: {
+        status: 'active',
+      },
+      orderBy: {
+        name: 'asc',
+      },
+      select: {
+        id: true,
+        slug: true,
+        name: true,
+        status: true,
+      },
+    }),
+  ]);
+
+  return {
+    sources,
+    categories,
+    technologies,
+    fallbackCategorySlug,
+  };
 }
 
 function getReportableInput(input: unknown): ReportableInput {

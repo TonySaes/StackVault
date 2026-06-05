@@ -1,8 +1,14 @@
 import { assert, describe, it, vi } from 'vitest';
 
 import type { IngestionItem } from './ingestion-item.js';
-import { runManualDemoIngestion } from './manual-demo-ingestion.js';
-import type { ManualDemoIngestionPersistencePort } from './manual-demo-ingestion.js';
+import {
+  loadManualDemoIngestionContext,
+  runManualDemoIngestion,
+} from './manual-demo-ingestion.js';
+import type {
+  ManualDemoIngestionCatalogReader,
+  ManualDemoIngestionPersistencePort,
+} from './manual-demo-ingestion.js';
 import type { IngestionNormalizationContext } from './normalize-ingestion-item.js';
 
 const validIngestionItem: IngestionItem = {
@@ -60,6 +66,131 @@ function createPersistencePort() {
     })),
   } satisfies ManualDemoIngestionPersistencePort;
 }
+
+function createCatalogReader() {
+  return {
+    source: {
+      findMany: vi.fn(
+        async (
+          _args: Parameters<
+            ManualDemoIngestionCatalogReader['source']['findMany']
+          >[0],
+        ) => [
+          {
+            id: 'source-react-blog',
+            name: 'React Blog',
+            url: 'https://react.dev/blog',
+            status: 'active',
+          },
+        ],
+      ),
+    },
+    category: {
+      findMany: vi.fn(
+        async (
+          _args: Parameters<
+            ManualDemoIngestionCatalogReader['category']['findMany']
+          >[0],
+        ) => [
+          {
+            id: 'category-trend',
+            slug: 'trend',
+            name: 'Trend',
+          },
+        ],
+      ),
+    },
+    technology: {
+      findMany: vi.fn(
+        async (
+          _args: Parameters<
+            ManualDemoIngestionCatalogReader['technology']['findMany']
+          >[0],
+        ) => [
+          {
+            id: 'technology-react',
+            slug: 'react',
+            name: 'React',
+            status: 'active',
+          },
+        ],
+      ),
+    },
+  } satisfies ManualDemoIngestionCatalogReader;
+}
+
+describe('loadManualDemoIngestionContext', () => {
+  it('loads active sources, categories and active technologies for normalization', async () => {
+    const catalog = createCatalogReader();
+
+    const context = await loadManualDemoIngestionContext(catalog);
+
+    assert.deepEqual(catalog.source.findMany.mock.calls[0]?.[0], {
+      where: {
+        status: 'active',
+      },
+      orderBy: {
+        name: 'asc',
+      },
+      select: {
+        id: true,
+        name: true,
+        url: true,
+        status: true,
+      },
+    });
+    assert.deepEqual(catalog.category.findMany.mock.calls[0]?.[0], {
+      orderBy: {
+        slug: 'asc',
+      },
+      select: {
+        id: true,
+        slug: true,
+        name: true,
+      },
+    });
+    assert.deepEqual(catalog.technology.findMany.mock.calls[0]?.[0], {
+      where: {
+        status: 'active',
+      },
+      orderBy: {
+        name: 'asc',
+      },
+      select: {
+        id: true,
+        slug: true,
+        name: true,
+        status: true,
+      },
+    });
+    assert.deepEqual(context, {
+      sources: [
+        {
+          id: 'source-react-blog',
+          name: 'React Blog',
+          url: 'https://react.dev/blog',
+          status: 'active',
+        },
+      ],
+      categories: [
+        {
+          id: 'category-trend',
+          slug: 'trend',
+          name: 'Trend',
+        },
+      ],
+      technologies: [
+        {
+          id: 'technology-react',
+          slug: 'react',
+          name: 'React',
+          status: 'active',
+        },
+      ],
+      fallbackCategorySlug: 'trend',
+    });
+  });
+});
 
 describe('runManualDemoIngestion', () => {
   it('validates, normalizes and persists valid items through the injected port', async () => {
