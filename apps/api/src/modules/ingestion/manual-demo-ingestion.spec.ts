@@ -105,6 +105,18 @@ function createResourceWriter(existingResourceId: string | null = null) {
         }),
       ),
     },
+    resourceTechnology: {
+      upsert: vi.fn(
+        async (
+          _args: Parameters<
+            ManualDemoIngestionResourceWriter['resourceTechnology']['upsert']
+          >[0],
+        ) => ({
+          resourceId: existingResourceId ?? 'resource-react-compiler',
+          technologyId: 'technology-react',
+        }),
+      ),
+    },
   } satisfies ManualDemoIngestionResourceWriter;
 }
 
@@ -284,6 +296,31 @@ describe('createManualDemoIngestionPersistence', () => {
     assert.deepEqual(result, {
       resourceId: 'resource-react-compiler',
       operation: 'created',
+    });
+  });
+
+  it('upserts resource technology links without duplicate pairs', async () => {
+    const writer = createResourceWriter();
+    const persistence = createManualDemoIngestionPersistence(writer);
+
+    await persistence.upsertResourceDraft({
+      ...normalizedResourceDraft,
+      technologyIds: ['technology-react', 'technology-react'],
+    });
+
+    assert.strictEqual(writer.resourceTechnology.upsert.mock.calls.length, 1);
+    assert.deepEqual(writer.resourceTechnology.upsert.mock.calls[0]?.[0], {
+      where: {
+        resourceId_technologyId: {
+          resourceId: 'resource-react-compiler',
+          technologyId: 'technology-react',
+        },
+      },
+      update: {},
+      create: {
+        resourceId: 'resource-react-compiler',
+        technologyId: 'technology-react',
+      },
     });
   });
 

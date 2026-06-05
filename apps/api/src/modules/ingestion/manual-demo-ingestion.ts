@@ -120,6 +120,21 @@ export interface ManualDemoIngestionResourceWriter {
       };
     }): Promise<ManualDemoIngestionResourceRecord>;
   };
+  resourceTechnology: {
+    upsert(args: {
+      where: {
+        resourceId_technologyId: {
+          resourceId: string;
+          technologyId: string;
+        };
+      };
+      update: Record<string, never>;
+      create: {
+        resourceId: string;
+        technologyId: string;
+      };
+    }): Promise<unknown>;
+  };
 }
 
 interface ManualDemoIngestionResourceWriteData {
@@ -245,6 +260,10 @@ function mapDraftToResourceWriteData(
   };
 }
 
+function getUniqueTechnologyIds(draft: NormalizedResourceDraft): string[] {
+  return [...new Set(draft.technologyIds)];
+}
+
 // Prisma resource persistence
 // `upsert` owns the canonical URL deduplication at database level. The small
 // pre-read only tells the manual report whether this run created or updated the
@@ -276,6 +295,22 @@ export function createManualDemoIngestionPersistence(
           id: true,
         },
       });
+
+      for (const technologyId of getUniqueTechnologyIds(draft)) {
+        await writer.resourceTechnology.upsert({
+          where: {
+            resourceId_technologyId: {
+              resourceId: resource.id,
+              technologyId,
+            },
+          },
+          update: {},
+          create: {
+            resourceId: resource.id,
+            technologyId,
+          },
+        });
+      }
 
       return {
         resourceId: resource.id,
