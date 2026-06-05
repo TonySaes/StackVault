@@ -120,6 +120,23 @@ describe('normalizeIngestionItem', () => {
     }
   });
 
+  it('does not report a fallback warning when the candidate category matches the fallback category', () => {
+    const result = normalizeIngestionItem(
+      {
+        ...validIngestionItem,
+        candidateCategory: 'trend',
+      },
+      normalizationContext,
+    );
+
+    assert.strictEqual(result.success, true);
+
+    if (result.success) {
+      assert.strictEqual(result.draft.categoryId, 'category-trend');
+      assert.deepEqual(result.warnings, []);
+    }
+  });
+
   it('ignores unknown candidate technologies and reports a non-sensitive warning', () => {
     const result = normalizeIngestionItem(
       {

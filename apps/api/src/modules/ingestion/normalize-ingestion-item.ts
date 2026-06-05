@@ -146,15 +146,15 @@ export function normalizeIngestionItem(
     };
   }
 
-  const category =
-    context.categories.find(
-      (candidateCategory) =>
-        item.candidateCategory !== null &&
-        normalizeLookupValue(candidateCategory.slug) ===
-          normalizeLookupValue(item.candidateCategory),
-    ) ?? fallbackCategory;
+  const matchedCategory = context.categories.find(
+    (candidateCategory) =>
+      item.candidateCategory !== null &&
+      normalizeLookupValue(candidateCategory.slug) ===
+        normalizeLookupValue(item.candidateCategory),
+  );
+  const category = matchedCategory ?? fallbackCategory;
 
-  if (category === fallbackCategory && item.candidateCategory !== null) {
+  if (!matchedCategory && item.candidateCategory !== null) {
     warnings.push({
       code: 'category.fallback',
       field: 'candidateCategory',
