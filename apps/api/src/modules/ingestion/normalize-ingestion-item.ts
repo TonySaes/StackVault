@@ -149,18 +149,39 @@ export function normalizeIngestionItem(
 
   for (const technology of context.technologies) {
     if (technology.status === 'active') {
-      technologiesBySlugOrName.set(normalizeLookupValue(technology.slug), technology.id);
-      technologiesBySlugOrName.set(normalizeLookupValue(technology.name), technology.id);
+      technologiesBySlugOrName.set(
+        normalizeLookupValue(technology.slug),
+        technology.id,
+      );
+      technologiesBySlugOrName.set(
+        normalizeLookupValue(technology.name),
+        technology.id,
+      );
     }
   }
+
+  let hasUnmatchedTechnology = false;
 
   const technologyIds = item.candidateTechnologies.flatMap((technology) => {
     const technologyId = technologiesBySlugOrName.get(
       normalizeLookupValue(technology),
     );
 
-    return technologyId ? [technologyId] : [];
+    if (!technologyId) {
+      hasUnmatchedTechnology = true;
+
+      return [];
+    }
+
+    return [technologyId];
   });
+
+  if (hasUnmatchedTechnology) {
+    warnings.push({
+      code: 'technology.unmatched',
+      field: 'candidateTechnologies',
+    });
+  }
 
   return {
     success: true,

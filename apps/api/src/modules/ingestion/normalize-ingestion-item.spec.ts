@@ -102,4 +102,67 @@ describe('normalizeIngestionItem', () => {
       ]);
     }
   });
+
+  it('ignores unknown candidate technologies and reports a non-sensitive warning', () => {
+    const result = normalizeIngestionItem(
+      {
+        ...validIngestionItem,
+        candidateTechnologies: ['React', 'Unknown Framework'],
+      },
+      normalizationContext,
+    );
+
+    assert.strictEqual(result.success, true);
+
+    if (result.success) {
+      assert.deepEqual(result.draft.technologyIds, ['technology-react']);
+      assert.deepEqual(result.warnings, [
+        {
+          code: 'technology.unmatched',
+          field: 'candidateTechnologies',
+        },
+      ]);
+    }
+  });
+
+  it('returns a non-sensitive error when the source is not allowlisted', () => {
+    const result = normalizeIngestionItem(validIngestionItem, {
+      ...normalizationContext,
+      sources: [],
+    });
+
+    assert.strictEqual(result.success, false);
+
+    if (!result.success) {
+      assert.deepEqual(result.errors, [
+        {
+          code: 'source.notAllowlisted',
+          field: 'source',
+        },
+      ]);
+    }
+  });
+
+  it('returns a non-sensitive error when the allowlisted source is inactive', () => {
+    const result = normalizeIngestionItem(validIngestionItem, {
+      ...normalizationContext,
+      sources: [
+        {
+          ...normalizationContext.sources[0]!,
+          status: 'inactive',
+        },
+      ],
+    });
+
+    assert.strictEqual(result.success, false);
+
+    if (!result.success) {
+      assert.deepEqual(result.errors, [
+        {
+          code: 'source.inactive',
+          field: 'source',
+        },
+      ]);
+    }
+  });
 });
