@@ -93,6 +93,46 @@ export interface ManualDemoIngestionCatalogReader {
   };
 }
 
+interface ManualDemoIngestionResourceRecord {
+  id: string;
+}
+
+export interface ManualDemoIngestionResourceWriter {
+  resource: {
+    findUnique(args: {
+      where: {
+        canonicalUrl: string;
+      };
+      select: {
+        id: true;
+      };
+    }): Promise<ManualDemoIngestionResourceRecord | null>;
+    upsert(args: {
+      where: {
+        canonicalUrl: string;
+      };
+      update: ManualDemoIngestionResourceWriteData;
+      create: ManualDemoIngestionResourceWriteData & {
+        canonicalUrl: string;
+      };
+      select: {
+        id: true;
+      };
+    }): Promise<ManualDemoIngestionResourceRecord>;
+  };
+}
+
+interface ManualDemoIngestionResourceWriteData {
+  sourceId: string;
+  categoryId: string;
+  title: string;
+  sourceUrl: string;
+  publishedAt: Date | null;
+  shortSummary: string | null;
+  lifecycleStatus: 'active';
+  linkStatus: 'unknown';
+}
+
 export interface ManualDemoIngestionDuplicateIssue {
   code: 'canonicalUrl.duplicate';
   field: 'canonicalUrl';
@@ -187,6 +227,61 @@ export async function loadManualDemoIngestionContext(
     categories,
     technologies,
     fallbackCategorySlug,
+  };
+}
+
+function mapDraftToResourceWriteData(
+  draft: NormalizedResourceDraft,
+): ManualDemoIngestionResourceWriteData {
+  return {
+    sourceId: draft.sourceId,
+    categoryId: draft.categoryId,
+    title: draft.title,
+    sourceUrl: draft.sourceUrl,
+    publishedAt: draft.publishedAt,
+    shortSummary: draft.shortSummary,
+    lifecycleStatus: draft.lifecycleStatus,
+    linkStatus: draft.linkStatus,
+  };
+}
+
+// Prisma resource persistence
+// `upsert` owns the canonical URL deduplication at database level. The small
+// pre-read only tells the manual report whether this run created or updated the
+// public resource.
+export function createManualDemoIngestionPersistence(
+  writer: ManualDemoIngestionResourceWriter,
+): ManualDemoIngestionPersistencePort {
+  return {
+    async upsertResourceDraft(draft) {
+      const existingResource = await writer.resource.findUnique({
+        where: {
+          canonicalUrl: draft.canonicalUrl,
+        },
+        select: {
+          id: true,
+        },
+      });
+      const writeData = mapDraftToResourceWriteData(draft);
+      const resource = await writer.resource.upsert({
+        where: {
+          canonicalUrl: draft.canonicalUrl,
+        },
+        update: writeData,
+        create: {
+          ...writeData,
+          canonicalUrl: draft.canonicalUrl,
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      return {
+        resourceId: resource.id,
+        operation: existingResource ? 'updated' : 'created',
+      };
+    },
   };
 }
 

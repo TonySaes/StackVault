@@ -2,14 +2,19 @@ import { assert, describe, it, vi } from 'vitest';
 
 import type { IngestionItem } from './ingestion-item.js';
 import {
+  createManualDemoIngestionPersistence,
   loadManualDemoIngestionContext,
   runManualDemoIngestion,
 } from './manual-demo-ingestion.js';
 import type {
   ManualDemoIngestionCatalogReader,
   ManualDemoIngestionPersistencePort,
+  ManualDemoIngestionResourceWriter,
 } from './manual-demo-ingestion.js';
-import type { IngestionNormalizationContext } from './normalize-ingestion-item.js';
+import type {
+  IngestionNormalizationContext,
+  NormalizedResourceDraft,
+} from './normalize-ingestion-item.js';
 
 const validIngestionItem: IngestionItem = {
   title: 'React Compiler release candidate',
@@ -58,6 +63,19 @@ const normalizationContext: IngestionNormalizationContext = {
   fallbackCategorySlug: 'trend',
 };
 
+const normalizedResourceDraft: NormalizedResourceDraft = {
+  sourceId: 'source-react-blog',
+  categoryId: 'category-release',
+  title: 'React Compiler release candidate',
+  sourceUrl: 'https://react.dev/blog/2025/04/21/react-compiler-rc',
+  canonicalUrl: 'https://react.dev/blog/2025/04/21/react-compiler-rc',
+  publishedAt: new Date('2025-04-21T00:00:00.000Z'),
+  shortSummary: 'Le compilateur React progresse vers une adoption stable.',
+  lifecycleStatus: 'active',
+  linkStatus: 'unknown',
+  technologyIds: ['technology-react'],
+};
+
 function createPersistencePort() {
   return {
     upsertResourceDraft: vi.fn(async () => ({
@@ -65,6 +83,29 @@ function createPersistencePort() {
       operation: 'created' as const,
     })),
   } satisfies ManualDemoIngestionPersistencePort;
+}
+
+function createResourceWriter(existingResourceId: string | null = null) {
+  return {
+    resource: {
+      findUnique: vi.fn(
+        async (
+          _args: Parameters<
+            ManualDemoIngestionResourceWriter['resource']['findUnique']
+          >[0],
+        ) => (existingResourceId ? { id: existingResourceId } : null),
+      ),
+      upsert: vi.fn(
+        async (
+          _args: Parameters<
+            ManualDemoIngestionResourceWriter['resource']['upsert']
+          >[0],
+        ) => ({
+          id: existingResourceId ?? 'resource-react-compiler',
+        }),
+      ),
+    },
+  } satisfies ManualDemoIngestionResourceWriter;
 }
 
 function createCatalogReader() {
@@ -188,6 +229,74 @@ describe('loadManualDemoIngestionContext', () => {
         },
       ],
       fallbackCategorySlug: 'trend',
+    });
+  });
+});
+
+describe('createManualDemoIngestionPersistence', () => {
+  it('upserts a public resource by canonical URL and reports creation', async () => {
+    const writer = createResourceWriter();
+    const persistence = createManualDemoIngestionPersistence(writer);
+
+    const result =
+      await persistence.upsertResourceDraft(normalizedResourceDraft);
+
+    assert.deepEqual(writer.resource.findUnique.mock.calls[0]?.[0], {
+      where: {
+        canonicalUrl:
+          'https://react.dev/blog/2025/04/21/react-compiler-rc',
+      },
+      select: {
+        id: true,
+      },
+    });
+    assert.deepEqual(writer.resource.upsert.mock.calls[0]?.[0], {
+      where: {
+        canonicalUrl:
+          'https://react.dev/blog/2025/04/21/react-compiler-rc',
+      },
+      update: {
+        sourceId: 'source-react-blog',
+        categoryId: 'category-release',
+        title: 'React Compiler release candidate',
+        sourceUrl: 'https://react.dev/blog/2025/04/21/react-compiler-rc',
+        publishedAt: new Date('2025-04-21T00:00:00.000Z'),
+        shortSummary: 'Le compilateur React progresse vers une adoption stable.',
+        lifecycleStatus: 'active',
+        linkStatus: 'unknown',
+      },
+      create: {
+        sourceId: 'source-react-blog',
+        categoryId: 'category-release',
+        title: 'React Compiler release candidate',
+        sourceUrl: 'https://react.dev/blog/2025/04/21/react-compiler-rc',
+        canonicalUrl:
+          'https://react.dev/blog/2025/04/21/react-compiler-rc',
+        publishedAt: new Date('2025-04-21T00:00:00.000Z'),
+        shortSummary: 'Le compilateur React progresse vers une adoption stable.',
+        lifecycleStatus: 'active',
+        linkStatus: 'unknown',
+      },
+      select: {
+        id: true,
+      },
+    });
+    assert.deepEqual(result, {
+      resourceId: 'resource-react-compiler',
+      operation: 'created',
+    });
+  });
+
+  it('reports update when the canonical URL already exists', async () => {
+    const writer = createResourceWriter('existing-resource');
+    const persistence = createManualDemoIngestionPersistence(writer);
+
+    const result =
+      await persistence.upsertResourceDraft(normalizedResourceDraft);
+
+    assert.deepEqual(result, {
+      resourceId: 'existing-resource',
+      operation: 'updated',
     });
   });
 });
