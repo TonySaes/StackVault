@@ -165,4 +165,39 @@ describe('normalizeIngestionItem', () => {
       ]);
     }
   });
+
+  it('does not carry complete third-party body fields into the public draft', () => {
+    const itemWithRuntimeExtraFields = {
+      ...validIngestionItem,
+      rawContent: '<article>Full third-party article</article>',
+      bodyHtml: '<article>Full HTML body</article>',
+    } as IngestionItem & {
+      rawContent: string;
+      bodyHtml: string;
+    };
+
+    const result = normalizeIngestionItem(
+      itemWithRuntimeExtraFields,
+      normalizationContext,
+    );
+
+    assert.strictEqual(result.success, true);
+
+    if (result.success) {
+      assert.deepEqual(Object.keys(result.draft).sort(), [
+        'canonicalUrl',
+        'categoryId',
+        'lifecycleStatus',
+        'linkStatus',
+        'publishedAt',
+        'shortSummary',
+        'sourceId',
+        'sourceUrl',
+        'technologyIds',
+        'title',
+      ]);
+      assert.strictEqual('rawContent' in result.draft, false);
+      assert.strictEqual('bodyHtml' in result.draft, false);
+    }
+  });
 });
