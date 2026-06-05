@@ -1,3 +1,6 @@
+import type { IngestionItem } from './ingestion-item.js';
+import { normalizeCanonicalUrl } from '../resources/canonical-url.js';
+
 // Normalization context
 // The normalizer receives resolved catalog entries instead of reading the DB.
 // Later services or jobs will own the Prisma queries and pass this context in.
@@ -72,3 +75,107 @@ export type IngestionNormalizationResult =
       success: false;
       errors: IngestionNormalizationIssue[];
     };
+
+function normalizeLookupValue(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function parsePublishedAt(publishedAt: IngestionItem['publishedAt']): Date | null {
+  if (publishedAt === undefined || publishedAt === null) {
+    return null;
+  }
+
+  if (publishedAt instanceof Date) {
+    return publishedAt;
+  }
+
+  return new Date(publishedAt);
+}
+
+// Normalization mapper
+// The function transforms a validated ingestion item into the shape a future
+// service can persist. It deliberately stays pure: no Prisma, no network, no job.
+export function normalizeIngestionItem(
+  item: IngestionItem,
+  context: IngestionNormalizationContext,
+): IngestionNormalizationResult {
+  const source = context.sources.find(
+    (candidateSource) => candidateSource.url === item.source.url,
+  );
+
+  if (!source) {
+    return {
+      success: false,
+      errors: [{ code: 'source.notAllowlisted', field: 'source' }],
+    };
+  }
+
+  if (source.status !== 'active') {
+    return {
+      success: false,
+      errors: [{ code: 'source.inactive', field: 'source' }],
+    };
+  }
+
+  const warnings: IngestionNormalizationIssue[] = [];
+  const fallbackCategory = context.categories.find(
+    (category) => category.slug === context.fallbackCategorySlug,
+  );
+
+  if (!fallbackCategory) {
+    return {
+      success: false,
+      errors: [
+        { code: 'categoryFallback.missing', field: 'fallbackCategorySlug' },
+      ],
+    };
+  }
+
+  const category =
+    context.categories.find(
+      (candidateCategory) =>
+        item.candidateCategory !== null &&
+        candidateCategory.slug === item.candidateCategory,
+    ) ?? fallbackCategory;
+
+  if (category === fallbackCategory && item.candidateCategory !== null) {
+    warnings.push({
+      code: 'category.fallback',
+      field: 'candidateCategory',
+    });
+  }
+
+  const technologiesBySlugOrName = new Map<string, string>();
+
+  for (const technology of context.technologies) {
+    if (technology.status === 'active') {
+      technologiesBySlugOrName.set(normalizeLookupValue(technology.slug), technology.id);
+      technologiesBySlugOrName.set(normalizeLookupValue(technology.name), technology.id);
+    }
+  }
+
+  const technologyIds = item.candidateTechnologies.flatMap((technology) => {
+    const technologyId = technologiesBySlugOrName.get(
+      normalizeLookupValue(technology),
+    );
+
+    return technologyId ? [technologyId] : [];
+  });
+
+  return {
+    success: true,
+    draft: {
+      sourceId: source.id,
+      categoryId: category.id,
+      title: item.title,
+      sourceUrl: item.sourceUrl,
+      canonicalUrl: normalizeCanonicalUrl(item.sourceUrl),
+      publishedAt: parsePublishedAt(item.publishedAt),
+      shortSummary: item.shortSummary ?? null,
+      lifecycleStatus: 'active',
+      linkStatus: 'unknown',
+      technologyIds,
+    },
+    warnings,
+  };
+}
