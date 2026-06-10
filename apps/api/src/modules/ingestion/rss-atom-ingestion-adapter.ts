@@ -246,6 +246,35 @@ function findCandidateCategory(categories: string[]): string | null {
   );
 }
 
+function inferCandidateCategoryFromTitle(title: string): string | null {
+  const normalizedTitle = title.toLowerCase();
+
+  if (
+    normalizedTitle.includes('security') ||
+    normalizedTitle.includes('vulnerability') ||
+    normalizedTitle.includes('denial of service')
+  ) {
+    return 'security';
+  }
+
+  if (
+    normalizedTitle.includes('release') ||
+    normalizedTitle.includes('upgrade') ||
+    /\bv\d+(?:\.\d+)*\b/.test(normalizedTitle)
+  ) {
+    return 'release';
+  }
+
+  return null;
+}
+
+function resolveCandidateCategory(entry: RssAtomParsedFeedEntry): string | null {
+  return (
+    findCandidateCategory(entry.categories) ??
+    (entry.title !== null ? inferCandidateCategoryFromTitle(entry.title) : null)
+  );
+}
+
 function findCandidateTechnologies(categories: string[]): string[] {
   const candidateCategory = findCandidateCategory(categories);
 
@@ -351,7 +380,7 @@ export function mapRssAtomEntriesToIngestionItems(
       continue;
     }
 
-    const candidateCategory = findCandidateCategory(entry.categories);
+    const candidateCategory = resolveCandidateCategory(entry);
     const candidateTechnologies = resolveCandidateTechnologies(
       source,
       entry.categories,

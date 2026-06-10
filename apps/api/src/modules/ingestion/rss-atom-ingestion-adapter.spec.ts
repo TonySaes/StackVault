@@ -246,6 +246,42 @@ describe('mapRssAtomEntriesToIngestionItems', () => {
     ]);
   });
 
+  it('infers security categories from strong title signals', () => {
+    const result = mapRssAtomEntriesToIngestionItems(rssAtomSource, [
+      {
+        title: 'Critical Security Vulnerability in React Server Components',
+        sourceUrl: 'https://react.dev/blog/security-vulnerability',
+        publishedAt: null,
+        summary: null,
+        categories: [],
+      },
+    ]);
+
+    assert.strictEqual(result.items.length, 1);
+    assert.deepEqual(result.items[0]?.candidateCategory, 'security');
+    assert.deepEqual(result.items[0]?.candidateTechnologies, ['React']);
+    assert.deepEqual(result.entries[0]?.warnings, []);
+  });
+
+  it('keeps a category warning when title signals are not strong enough', () => {
+    const result = mapRssAtomEntriesToIngestionItems(rssAtomSource, [
+      {
+        title: 'React Conf 2025 Recap',
+        sourceUrl: 'https://react.dev/blog/react-conf-2025-recap',
+        publishedAt: null,
+        summary: null,
+        categories: [],
+      },
+    ]);
+
+    assert.strictEqual(result.items.length, 1);
+    assert.deepEqual(result.items[0]?.candidateCategory, null);
+    assert.deepEqual(result.items[0]?.candidateTechnologies, ['React']);
+    assert.deepEqual(result.entries[0]?.warnings, [
+      { code: 'entry.categoryMissing', field: 'categories' },
+    ]);
+  });
+
   it('keeps a technology warning when neither entry tags nor source default exist', () => {
     const { defaultTechnology: _defaultTechnology, ...sourceWithoutDefault } =
       rssAtomSource;
