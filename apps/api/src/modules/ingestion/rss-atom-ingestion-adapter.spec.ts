@@ -109,6 +109,26 @@ describe('parseRssAtomFeedEntries', () => {
     assert.strictEqual(JSON.stringify(entries).includes('Full body'), false);
   });
 
+  it('cleans RSS HTML descriptions before they can become short summaries', () => {
+    const entries = parseRssAtomFeedEntries(`<?xml version="1.0" ?>
+<rss version="2.0">
+  <channel>
+    <item>
+      <title>React HTML summary</title>
+      <link>https://react.dev/blog/html-summary</link>
+      <description><![CDATA[<p>React &amp; StackVault <strong>restent lisibles</strong>.</p><script>alert('x')</script>]]></description>
+      <category>React</category>
+    </item>
+  </channel>
+</rss>`);
+
+    assert.strictEqual(
+      entries[0]?.summary,
+      'React & StackVault restent lisibles.',
+    );
+    assert.strictEqual(JSON.stringify(entries).includes('<script>'), false);
+  });
+
   it('extracts metadata from Atom entries without carrying full content bodies', () => {
     const entries = parseRssAtomFeedEntries(atomFeed);
 
@@ -124,6 +144,36 @@ describe('parseRssAtomFeedEntries', () => {
       },
     ]);
     assert.strictEqual(JSON.stringify(entries).includes('Full body'), false);
+  });
+
+  it('does not use opaque RSS guid values as source URLs', () => {
+    const entries = parseRssAtomFeedEntries(`<?xml version="1.0" ?>
+<rss version="2.0">
+  <channel>
+    <item>
+      <title>Opaque guid entry</title>
+      <guid isPermaLink="false">react-opaque-id</guid>
+    </item>
+  </channel>
+</rss>`);
+
+    assert.deepEqual(entries[0]?.sourceUrl, null);
+  });
+
+  it('selects the first usable Atom article link when earlier links lack href', () => {
+    const entries = parseRssAtomFeedEntries(`<?xml version="1.0" ?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <entry>
+    <title>Atom link selection</title>
+    <link rel="alternate" />
+    <link href="https://react.dev/blog/atom-link-selection" />
+  </entry>
+</feed>`);
+
+    assert.deepEqual(
+      entries[0]?.sourceUrl,
+      'https://react.dev/blog/atom-link-selection',
+    );
   });
 });
 
@@ -177,6 +227,23 @@ describe('mapRssAtomEntriesToIngestionItems', () => {
     assert.deepEqual(result.items, []);
     assert.deepEqual(result.entries[0]?.errors, [
       { code: 'entry.titleMissing', field: 'title' },
+    ]);
+  });
+
+  it('rejects titles that exceed the persisted Resource title limit', () => {
+    const result = mapRssAtomEntriesToIngestionItems(rssAtomSource, [
+      {
+        title: 'a'.repeat(241),
+        sourceUrl: 'https://react.dev/blog/2025/04/21/react-compiler-rc',
+        publishedAt: null,
+        summary: null,
+        categories: ['release'],
+      },
+    ]);
+
+    assert.deepEqual(result.items, []);
+    assert.deepEqual(result.entries[0]?.errors, [
+      { code: 'entry.titleTooLong', field: 'title' },
     ]);
   });
 
@@ -363,6 +430,26 @@ describe('runRssAtomIngestionAdapter', () => {
     ]);
   });
 
+  it('does not fetch feed URLs outside the allowlisted source origin', async () => {
+    const fetchFeed = vi.fn(async () => rssFeed);
+
+    const result = await runRssAtomIngestionAdapter(
+      {
+        ...rssAtomSource,
+        feedUrl: 'https://example.com/react.xml',
+      },
+      {
+        fetchFeed,
+      },
+    );
+
+    assert.strictEqual(fetchFeed.mock.calls.length, 0);
+    assert.deepEqual(result.items, []);
+    assert.deepEqual(result.entries[0]?.errors, [
+      { code: 'feed.urlNotAllowlisted', field: 'feedUrl' },
+    ]);
+  });
+
   it('reports fetch failures without leaking provider error details', async () => {
     const fetchFeed = vi.fn(async () => {
       throw new Error('provider secret timeout payload');
@@ -377,6 +464,19 @@ describe('runRssAtomIngestionAdapter', () => {
       { code: 'feed.fetchFailed', field: 'fetchFeed' },
     ]);
     assert.strictEqual(JSON.stringify(result).includes('provider secret'), false);
+  });
+
+  it('reports non RSS Atom payloads instead of succeeding with zero items', async () => {
+    const fetchFeed = vi.fn(async () => '<html><body>Not a feed</body></html>');
+
+    const result = await runRssAtomIngestionAdapter(rssAtomSource, {
+      fetchFeed,
+    });
+
+    assert.deepEqual(result.items, []);
+    assert.deepEqual(result.entries[0]?.errors, [
+      { code: 'feed.parseFailed', field: 'feed' },
+    ]);
   });
 });
 
@@ -441,5 +541,47 @@ describe('runRssAtomIngestion', () => {
       skippedCount: 0,
       items: [],
     });
+  });
+
+  it('reports an update on the second RSS Atom run for the same canonical URL', async () => {
+    const fetchFeed = vi.fn(async () => rssFeed);
+    const persistence = {
+      upsertResourceDraft: vi
+        .fn()
+        .mockResolvedValueOnce({
+          resourceId: 'resource-react-compiler',
+          operation: 'created' as const,
+        })
+        .mockResolvedValueOnce({
+          resourceId: 'resource-react-compiler',
+          operation: 'updated' as const,
+        }),
+    } satisfies ManualDemoIngestionPersistencePort;
+
+    const firstRun = await runRssAtomIngestion(rssAtomSource, {
+      fetchFeed,
+      normalizationContext,
+      persistence,
+    });
+    const secondRun = await runRssAtomIngestion(rssAtomSource, {
+      fetchFeed,
+      normalizationContext,
+      persistence,
+    });
+
+    assert.strictEqual(persistence.upsertResourceDraft.mock.calls.length, 2);
+    assert.deepEqual(
+      persistence.upsertResourceDraft.mock.calls.map(
+        ([draft]) => draft.canonicalUrl,
+      ),
+      [
+        'https://react.dev/blog/2025/04/21/react-compiler-rc',
+        'https://react.dev/blog/2025/04/21/react-compiler-rc',
+      ],
+    );
+    assert.strictEqual(firstRun.ingestion.createdCount, 1);
+    assert.strictEqual(firstRun.ingestion.updatedCount, 0);
+    assert.strictEqual(secondRun.ingestion.createdCount, 0);
+    assert.strictEqual(secondRun.ingestion.updatedCount, 1);
   });
 });

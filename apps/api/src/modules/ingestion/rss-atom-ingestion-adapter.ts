@@ -53,9 +53,11 @@ export interface RssAtomParsedFeedEntry {
 export type RssAtomIngestionErrorCode =
   | 'source.inactive'
   | 'source.typeUnsupported'
+  | 'feed.urlNotAllowlisted'
   | 'feed.fetchFailed'
   | 'feed.parseFailed'
   | 'entry.titleMissing'
+  | 'entry.titleTooLong'
   | 'entry.sourceUrlMissing'
   | 'entry.sourceUrlInvalid'
   | 'entry.summaryTooLong';
@@ -101,6 +103,7 @@ type XmlRecord = Record<string, unknown>;
 
 const XML_TEXT_NODE = '#text';
 const XML_ATTRIBUTE_PREFIX = '@_';
+const MAX_RESOURCE_TITLE_LENGTH = 240;
 
 const rssAtomXmlParser = new XMLParser({
   ignoreAttributes: false,
@@ -153,6 +156,69 @@ function isPublicHttpUrl(input: string): boolean {
   }
 }
 
+function isSameOriginPublicHttpUrl(referenceUrl: string, candidateUrl: string) {
+  try {
+    const reference = new URL(referenceUrl);
+    const candidate = new URL(candidateUrl);
+
+    return (
+      isPublicHttpUrl(reference.href) &&
+      isPublicHttpUrl(candidate.href) &&
+      reference.origin === candidate.origin
+    );
+  } catch {
+    return false;
+  }
+}
+
+function decodeBasicHtmlEntities(input: string): string {
+  const namedEntities: Record<string, string> = {
+    amp: '&',
+    apos: "'",
+    gt: '>',
+    lt: '<',
+    nbsp: ' ',
+    quot: '"',
+  };
+
+  return input.replace(
+    /&(#\d+|#x[\da-f]+|amp|apos|gt|lt|nbsp|quot);/gi,
+    (entity, value: string) => {
+      const normalizedValue = value.toLowerCase();
+
+      if (normalizedValue.startsWith('#x')) {
+        return String.fromCodePoint(Number.parseInt(normalizedValue.slice(2), 16));
+      }
+
+      if (normalizedValue.startsWith('#')) {
+        return String.fromCodePoint(Number.parseInt(normalizedValue.slice(1), 10));
+      }
+
+      return namedEntities[normalizedValue] ?? entity;
+    },
+  );
+}
+
+function sanitizeShortSummary(summary: string | null): string | null {
+  if (summary === null) {
+    return null;
+  }
+
+  // RSS descriptions often contain small HTML fragments. StackVault stores a
+  // plain text summary only; this helper strips markup before the length guard.
+  const plainTextSummary = decodeBasicHtmlEntities(
+    summary
+      .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, ' ')
+      .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<[^>]*>/g, ' '),
+  )
+    .replace(/\s+/g, ' ')
+    .replace(/\s+([,.:;!?])/g, '$1')
+    .trim();
+
+  return plainTextSummary.length > 0 ? plainTextSummary : null;
+}
+
 function getRssChannel(parsedFeed: unknown): XmlRecord | null {
   if (!isRecord(parsedFeed) || !isRecord(parsedFeed.rss)) {
     return null;
@@ -170,6 +236,16 @@ function parseCategoryValues(input: unknown): string[] {
     .filter((category): category is string => category !== null);
 }
 
+function getRssGuidUrl(input: unknown): string | null {
+  if (getAttributeValue(input, 'isPermaLink')?.toLowerCase() === 'false') {
+    return null;
+  }
+
+  const guidValue = getStringValue(input);
+
+  return guidValue !== null && isPublicHttpUrl(guidValue) ? guidValue : null;
+}
+
 function parseRssEntry(item: unknown): RssAtomParsedFeedEntry | null {
   if (!isRecord(item)) {
     return null;
@@ -177,21 +253,30 @@ function parseRssEntry(item: unknown): RssAtomParsedFeedEntry | null {
 
   return {
     title: getStringValue(item.title),
-    sourceUrl: getStringValue(item.link) ?? getStringValue(item.guid),
+    sourceUrl: getStringValue(item.link) ?? getRssGuidUrl(item.guid),
     publishedAt: getStringValue(item.pubDate),
-    summary: getStringValue(item.description),
+    summary: sanitizeShortSummary(getStringValue(item.description)),
     categories: parseCategoryValues(item.category),
   };
 }
 
+function getAtomLinkTarget(input: unknown): string | null {
+  return getAttributeValue(input, 'href') ?? getStringValue(input);
+}
+
 function getAtomEntryLink(input: unknown): string | null {
   const links = asArray(input);
-  const alternateLink = links.find(
-    (link) => getAttributeValue(link, 'rel') === 'alternate',
-  );
-  const selectedLink = alternateLink ?? links[0];
+  const articleLinks = links.filter((link) => {
+    const rel = getAttributeValue(link, 'rel');
 
-  return getStringValue(selectedLink) ?? getAttributeValue(selectedLink, 'href');
+    return rel === null || rel === 'alternate';
+  });
+
+  return (
+    articleLinks
+      .map(getAtomLinkTarget)
+      .find((link): link is string => link !== null) ?? null
+  );
 }
 
 function parseAtomEntry(entry: unknown): RssAtomParsedFeedEntry | null {
@@ -204,7 +289,7 @@ function parseAtomEntry(entry: unknown): RssAtomParsedFeedEntry | null {
     sourceUrl: getAtomEntryLink(entry.link),
     publishedAt:
       getStringValue(entry.published) ?? getStringValue(entry.updated),
-    summary: getStringValue(entry.summary),
+    summary: sanitizeShortSummary(getStringValue(entry.summary)),
     categories: parseCategoryValues(entry.category),
   };
 }
@@ -347,6 +432,16 @@ export function mapRssAtomEntriesToIngestionItems(
       continue;
     }
 
+    if (entry.title.length > MAX_RESOURCE_TITLE_LENGTH) {
+      entryReports.push(
+        buildSkippedEntryReport(entry, [
+          { code: 'entry.titleTooLong', field: 'title' },
+        ]),
+      );
+
+      continue;
+    }
+
     if (entry.sourceUrl === null) {
       entryReports.push(
         buildSkippedEntryReport(entry, [
@@ -458,6 +553,17 @@ export async function runRssAtomIngestionAdapter(
   let feedXml: string;
   const feedUrl = source.feedUrl ?? source.url;
 
+  if (!isSameOriginPublicHttpUrl(source.url, feedUrl)) {
+    return {
+      items: [],
+      entries: [
+        buildSourceSkippedReport(source, [
+          { code: 'feed.urlNotAllowlisted', field: 'feedUrl' },
+        ]),
+      ],
+    };
+  }
+
   try {
     feedXml = await dependencies.fetchFeed(feedUrl);
   } catch {
@@ -472,10 +578,20 @@ export async function runRssAtomIngestionAdapter(
   }
 
   try {
-    return mapRssAtomEntriesToIngestionItems(
-      source,
-      parseRssAtomFeedEntries(feedXml),
-    );
+    const entries = parseRssAtomFeedEntries(feedXml);
+
+    if (entries.length === 0) {
+      return {
+        items: [],
+        entries: [
+          buildSourceSkippedReport(source, [
+            { code: 'feed.parseFailed', field: 'feed' },
+          ]),
+        ],
+      };
+    }
+
+    return mapRssAtomEntriesToIngestionItems(source, entries);
   } catch {
     return {
       items: [],
