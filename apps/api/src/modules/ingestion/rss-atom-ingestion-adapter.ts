@@ -20,6 +20,7 @@ export interface RssAtomIngestionSource {
   name: string;
   url: string;
   feedUrl?: string;
+  defaultTechnology?: string;
   status: string;
   type: string;
 }
@@ -253,6 +254,22 @@ function findCandidateTechnologies(categories: string[]): string[] {
   );
 }
 
+function resolveCandidateTechnologies(
+  source: RssAtomIngestionSource,
+  categories: string[],
+): string[] {
+  const candidateTechnologies = findCandidateTechnologies(categories);
+
+  if (
+    candidateTechnologies.length === 0 &&
+    source.defaultTechnology !== undefined
+  ) {
+    return [source.defaultTechnology];
+  }
+
+  return candidateTechnologies;
+}
+
 function buildSkippedEntryReport(
   entry: RssAtomParsedFeedEntry,
   errors: RssAtomIngestionIssue[],
@@ -335,7 +352,10 @@ export function mapRssAtomEntriesToIngestionItems(
     }
 
     const candidateCategory = findCandidateCategory(entry.categories);
-    const candidateTechnologies = findCandidateTechnologies(entry.categories);
+    const candidateTechnologies = resolveCandidateTechnologies(
+      source,
+      entry.categories,
+    );
     const warnings: RssAtomIngestionIssue[] = [];
 
     if (candidateCategory === null) {

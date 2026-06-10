@@ -60,6 +60,16 @@ const fetchFeed: RssAtomFeedFetcher = async (url) => {
   return response.text();
 };
 
+function inferDefaultTechnologyFromSourceName(sourceName: string) {
+  const normalizedSourceName = sourceName.toLowerCase();
+
+  if (normalizedSourceName.includes('react')) {
+    return 'React';
+  }
+
+  return undefined;
+}
+
 function printUsage() {
   console.error(
     `Usage: npm run -w apps/api ingestion:rss-atom -- <source-url> [feed-url]`,
@@ -83,9 +93,14 @@ function buildRssAtomSource(
     status: source.status,
     type: source.type,
   };
+  const defaultTechnology = inferDefaultTechnologyFromSourceName(source.name);
 
   if (feedUrl !== undefined) {
     rssAtomSource.feedUrl = feedUrl;
+  }
+
+  if (defaultTechnology !== undefined) {
+    rssAtomSource.defaultTechnology = defaultTechnology;
   }
 
   return rssAtomSource;

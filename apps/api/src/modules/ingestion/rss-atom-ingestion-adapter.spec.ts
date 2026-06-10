@@ -47,6 +47,7 @@ const rssAtomSource: RssAtomIngestionSource = {
   name: 'React Blog',
   url: 'https://react.dev/blog',
   feedUrl: 'https://react.dev/rss.xml',
+  defaultTechnology: 'React',
   status: 'active',
   type: RSS_ATOM_SOURCE_TYPE,
 };
@@ -226,7 +227,7 @@ describe('mapRssAtomEntriesToIngestionItems', () => {
     ]);
   });
 
-  it('keeps usable entries with non-blocking classification warnings', () => {
+  it('infers the source default technology when entries do not expose tags', () => {
     const result = mapRssAtomEntriesToIngestionItems(rssAtomSource, [
       {
         title: 'Metadata-only entry',
@@ -239,6 +240,30 @@ describe('mapRssAtomEntriesToIngestionItems', () => {
 
     assert.strictEqual(result.items.length, 1);
     assert.deepEqual(result.items[0]?.candidateCategory, null);
+    assert.deepEqual(result.items[0]?.candidateTechnologies, ['React']);
+    assert.deepEqual(result.entries[0]?.warnings, [
+      { code: 'entry.categoryMissing', field: 'categories' },
+    ]);
+  });
+
+  it('keeps a technology warning when neither entry tags nor source default exist', () => {
+    const { defaultTechnology: _defaultTechnology, ...sourceWithoutDefault } =
+      rssAtomSource;
+
+    const result = mapRssAtomEntriesToIngestionItems(
+      sourceWithoutDefault,
+      [
+        {
+          title: 'Metadata-only entry',
+          sourceUrl: 'https://react.dev/blog/2025/04/21/react-compiler-rc',
+          publishedAt: null,
+          summary: null,
+          categories: [],
+        },
+      ],
+    );
+
+    assert.strictEqual(result.items.length, 1);
     assert.deepEqual(result.items[0]?.candidateTechnologies, []);
     assert.deepEqual(result.entries[0]?.warnings, [
       { code: 'entry.categoryMissing', field: 'categories' },
