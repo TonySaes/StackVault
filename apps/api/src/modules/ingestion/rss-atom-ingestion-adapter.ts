@@ -251,6 +251,19 @@ function buildSkippedEntryReport(
   };
 }
 
+function buildSourceSkippedReport(
+  source: RssAtomIngestionSource,
+  errors: RssAtomIngestionIssue[],
+): RssAtomIngestionEntryReport {
+  return {
+    title: source.name,
+    sourceUrl: source.url,
+    status: 'skipped',
+    warnings: [],
+    errors,
+  };
+}
+
 // Entry mapping
 // The adapter turns parsed feed metadata into the same internal contract used
 // by manual ingestion. It may keep short feed summaries, but it must never carry
@@ -346,4 +359,66 @@ export function mapRssAtomEntriesToIngestionItems(
     items,
     entries: entryReports,
   };
+}
+
+// Adapter orchestration
+// This is the first executable boundary for RSS/Atom ingestion. It validates the
+// allowlisted source shape, delegates network access to `fetchFeed`, then keeps
+// the rest of the flow pure and testable.
+export async function runRssAtomIngestionAdapter(
+  source: RssAtomIngestionSource,
+  dependencies: RssAtomIngestionDependencies,
+): Promise<RssAtomIngestionAdapterResult> {
+  if (source.status !== 'active') {
+    return {
+      items: [],
+      entries: [
+        buildSourceSkippedReport(source, [
+          { code: 'source.inactive', field: 'source.status' },
+        ]),
+      ],
+    };
+  }
+
+  if (source.type !== RSS_ATOM_SOURCE_TYPE) {
+    return {
+      items: [],
+      entries: [
+        buildSourceSkippedReport(source, [
+          { code: 'source.typeUnsupported', field: 'source.type' },
+        ]),
+      ],
+    };
+  }
+
+  let feedXml: string;
+
+  try {
+    feedXml = await dependencies.fetchFeed(source.url);
+  } catch {
+    return {
+      items: [],
+      entries: [
+        buildSourceSkippedReport(source, [
+          { code: 'feed.fetchFailed', field: 'fetchFeed' },
+        ]),
+      ],
+    };
+  }
+
+  try {
+    return mapRssAtomEntriesToIngestionItems(
+      source,
+      parseRssAtomFeedEntries(feedXml),
+    );
+  } catch {
+    return {
+      items: [],
+      entries: [
+        buildSourceSkippedReport(source, [
+          { code: 'feed.parseFailed', field: 'feed' },
+        ]),
+      ],
+    };
+  }
 }

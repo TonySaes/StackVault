@@ -1,8 +1,9 @@
-import { assert, describe, it } from 'vitest';
+import { assert, describe, it, vi } from 'vitest';
 
 import {
   mapRssAtomEntriesToIngestionItems,
   parseRssAtomFeedEntries,
+  runRssAtomIngestionAdapter,
   RSS_ATOM_SOURCE_TYPE,
   type RssAtomIngestionSource,
   type RssAtomParsedFeedEntry,
@@ -198,5 +199,77 @@ describe('mapRssAtomEntriesToIngestionItems', () => {
       { code: 'entry.categoryMissing', field: 'categories' },
       { code: 'entry.technologyMissing', field: 'categories' },
     ]);
+  });
+});
+
+describe('runRssAtomIngestionAdapter', () => {
+  it('fetches, parses and maps an active RSS Atom source through injected fetch', async () => {
+    const fetchFeed = vi.fn(async () => rssFeed);
+
+    const result = await runRssAtomIngestionAdapter(rssAtomSource, {
+      fetchFeed,
+    });
+
+    assert.strictEqual(fetchFeed.mock.calls.length, 1);
+    assert.deepEqual(fetchFeed.mock.calls[0], ['https://react.dev/blog']);
+    assert.strictEqual(result.items.length, 1);
+    assert.strictEqual(result.items[0]?.title, 'React Compiler release candidate');
+    assert.deepEqual(result.entries[0]?.errors, []);
+  });
+
+  it('does not fetch inactive sources', async () => {
+    const fetchFeed = vi.fn(async () => rssFeed);
+
+    const result = await runRssAtomIngestionAdapter(
+      {
+        ...rssAtomSource,
+        status: 'inactive',
+      },
+      {
+        fetchFeed,
+      },
+    );
+
+    assert.strictEqual(fetchFeed.mock.calls.length, 0);
+    assert.deepEqual(result.items, []);
+    assert.deepEqual(result.entries[0]?.errors, [
+      { code: 'source.inactive', field: 'source.status' },
+    ]);
+  });
+
+  it('does not fetch unsupported source types', async () => {
+    const fetchFeed = vi.fn(async () => rssFeed);
+
+    const result = await runRssAtomIngestionAdapter(
+      {
+        ...rssAtomSource,
+        type: 'public_metadata',
+      },
+      {
+        fetchFeed,
+      },
+    );
+
+    assert.strictEqual(fetchFeed.mock.calls.length, 0);
+    assert.deepEqual(result.items, []);
+    assert.deepEqual(result.entries[0]?.errors, [
+      { code: 'source.typeUnsupported', field: 'source.type' },
+    ]);
+  });
+
+  it('reports fetch failures without leaking provider error details', async () => {
+    const fetchFeed = vi.fn(async () => {
+      throw new Error('provider secret timeout payload');
+    });
+
+    const result = await runRssAtomIngestionAdapter(rssAtomSource, {
+      fetchFeed,
+    });
+
+    assert.deepEqual(result.items, []);
+    assert.deepEqual(result.entries[0]?.errors, [
+      { code: 'feed.fetchFailed', field: 'fetchFeed' },
+    ]);
+    assert.strictEqual(JSON.stringify(result).includes('provider secret'), false);
   });
 });
