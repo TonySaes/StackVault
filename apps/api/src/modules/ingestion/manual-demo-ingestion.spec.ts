@@ -86,37 +86,63 @@ function createPersistencePort() {
 }
 
 function createResourceWriter(existingResourceId: string | null = null) {
+  const resource = {
+    findUnique: vi.fn(
+      async (
+        _args: Parameters<
+          ManualDemoIngestionResourceWriter['resource']['findUnique']
+        >[0],
+      ) => (existingResourceId ? { id: existingResourceId } : null),
+    ),
+    upsert: vi.fn(
+      async (
+        _args: Parameters<
+          ManualDemoIngestionResourceWriter['resource']['upsert']
+        >[0],
+      ) => ({
+        id: existingResourceId ?? 'resource-react-compiler',
+      }),
+    ),
+  };
+  const resourceTechnology = {
+    deleteMany: vi.fn(
+      async (
+        _args: Parameters<
+          ManualDemoIngestionResourceWriter['resourceTechnology']['deleteMany']
+        >[0],
+      ) => ({
+        count: 0,
+      }),
+    ),
+    upsert: vi.fn(
+      async (
+        _args: Parameters<
+          ManualDemoIngestionResourceWriter['resourceTechnology']['upsert']
+        >[0],
+      ) => ({
+        resourceId: existingResourceId ?? 'resource-react-compiler',
+        technologyId: 'technology-react',
+      }),
+    ),
+  };
+  const transactionCalls: unknown[] = [];
+  const $transaction = Object.assign(
+    async <T>(
+      callback: Parameters<ManualDemoIngestionResourceWriter['$transaction']>[0],
+    ): Promise<T> => {
+      transactionCalls.push(callback);
+
+      return callback({ resource, resourceTechnology }) as Promise<T>;
+    },
+    {
+      calls: transactionCalls,
+    },
+  );
+
   return {
-    resource: {
-      findUnique: vi.fn(
-        async (
-          _args: Parameters<
-            ManualDemoIngestionResourceWriter['resource']['findUnique']
-          >[0],
-        ) => (existingResourceId ? { id: existingResourceId } : null),
-      ),
-      upsert: vi.fn(
-        async (
-          _args: Parameters<
-            ManualDemoIngestionResourceWriter['resource']['upsert']
-          >[0],
-        ) => ({
-          id: existingResourceId ?? 'resource-react-compiler',
-        }),
-      ),
-    },
-    resourceTechnology: {
-      upsert: vi.fn(
-        async (
-          _args: Parameters<
-            ManualDemoIngestionResourceWriter['resourceTechnology']['upsert']
-          >[0],
-        ) => ({
-          resourceId: existingResourceId ?? 'resource-react-compiler',
-          technologyId: 'technology-react',
-        }),
-      ),
-    },
+    resource,
+    resourceTechnology,
+    $transaction,
   } satisfies ManualDemoIngestionResourceWriter;
 }
 
@@ -253,6 +279,7 @@ describe('createManualDemoIngestionPersistence', () => {
     const result =
       await persistence.upsertResourceDraft(normalizedResourceDraft);
 
+    assert.strictEqual(writer.$transaction.calls.length, 1);
     assert.deepEqual(writer.resource.findUnique.mock.calls[0]?.[0], {
       where: {
         canonicalUrl:
@@ -293,6 +320,14 @@ describe('createManualDemoIngestionPersistence', () => {
         id: true,
       },
     });
+    assert.deepEqual(writer.resourceTechnology.deleteMany.mock.calls[0]?.[0], {
+      where: {
+        resourceId: 'resource-react-compiler',
+        technologyId: {
+          notIn: ['technology-react'],
+        },
+      },
+    });
     assert.deepEqual(result, {
       resourceId: 'resource-react-compiler',
       operation: 'created',
@@ -322,6 +357,23 @@ describe('createManualDemoIngestionPersistence', () => {
         technologyId: 'technology-react',
       },
     });
+  });
+
+  it('removes all resource technology links when the draft has no technologies', async () => {
+    const writer = createResourceWriter();
+    const persistence = createManualDemoIngestionPersistence(writer);
+
+    await persistence.upsertResourceDraft({
+      ...normalizedResourceDraft,
+      technologyIds: [],
+    });
+
+    assert.deepEqual(writer.resourceTechnology.deleteMany.mock.calls[0]?.[0], {
+      where: {
+        resourceId: 'resource-react-compiler',
+      },
+    });
+    assert.strictEqual(writer.resourceTechnology.upsert.mock.calls.length, 0);
   });
 
   it('reports update when the canonical URL already exists', async () => {
@@ -442,5 +494,45 @@ describe('runManualDemoIngestion', () => {
         field: 'source',
       },
     ]);
+  });
+
+  it('continues the run and reports a non-sensitive error when persistence fails', async () => {
+    const persistence = {
+      upsertResourceDraft: vi
+        .fn()
+        .mockRejectedValueOnce(new Error('database connection details'))
+        .mockResolvedValueOnce({
+          resourceId: 'resource-react-compiler',
+          operation: 'updated' as const,
+        }),
+    } satisfies ManualDemoIngestionPersistencePort;
+
+    const report = await runManualDemoIngestion(
+      [
+        validIngestionItem,
+        {
+          ...validIngestionItem,
+          sourceUrl: 'https://react.dev/blog/2025/04/21/react-compiler-rc-2',
+        },
+      ],
+      {
+        normalizationContext,
+        persistence,
+      },
+    );
+
+    assert.strictEqual(persistence.upsertResourceDraft.mock.calls.length, 2);
+    assert.strictEqual(report.skippedCount, 1);
+    assert.strictEqual(report.updatedCount, 1);
+    assert.deepEqual(report.items[0]?.errors, [
+      {
+        code: 'persistence.failed',
+        field: 'persistence',
+      },
+    ]);
+    assert.strictEqual(
+      'database connection details' in report.items[0]!,
+      false,
+    );
   });
 });

@@ -213,6 +213,50 @@ describe('normalizeIngestionItem', () => {
     }
   });
 
+  it('returns a non-sensitive error when sourceUrl is outside the allowlisted source perimeter', () => {
+    const result = normalizeIngestionItem(
+      {
+        ...validIngestionItem,
+        sourceUrl: 'https://example.invalid/fake-react-compiler-post',
+      },
+      normalizationContext,
+    );
+
+    assert.strictEqual(result.success, false);
+
+    if (!result.success) {
+      assert.deepEqual(result.errors, [
+        {
+          code: 'sourceUrl.notAllowlisted',
+          field: 'sourceUrl',
+        },
+      ]);
+    }
+  });
+
+  it('allows sourceUrl paths under a root-level allowlisted source domain', () => {
+    const result = normalizeIngestionItem(
+      {
+        ...validIngestionItem,
+        source: {
+          ...validIngestionItem.source,
+          url: 'https://react.dev',
+        },
+      },
+      {
+      ...normalizationContext,
+      sources: [
+        {
+          ...normalizationContext.sources[0]!,
+          url: 'https://react.dev',
+        },
+      ],
+      },
+    );
+
+    assert.strictEqual(result.success, true);
+  });
+
   it('returns a non-sensitive error when publication date cannot be normalized', () => {
     const result = normalizeIngestionItem(
       {

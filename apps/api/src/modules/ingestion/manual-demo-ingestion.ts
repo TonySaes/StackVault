@@ -97,7 +97,7 @@ interface ManualDemoIngestionResourceRecord {
   id: string;
 }
 
-export interface ManualDemoIngestionResourceWriter {
+interface ManualDemoIngestionResourcePersistenceClient {
   resource: {
     findUnique(args: {
       where: {
@@ -121,6 +121,14 @@ export interface ManualDemoIngestionResourceWriter {
     }): Promise<ManualDemoIngestionResourceRecord>;
   };
   resourceTechnology: {
+    deleteMany(args: {
+      where: {
+        resourceId: string;
+        technologyId?: {
+          notIn: string[];
+        };
+      };
+    }): Promise<unknown>;
     upsert(args: {
       where: {
         resourceId_technologyId: {
@@ -135,6 +143,15 @@ export interface ManualDemoIngestionResourceWriter {
       };
     }): Promise<unknown>;
   };
+}
+
+export interface ManualDemoIngestionResourceWriter
+  extends ManualDemoIngestionResourcePersistenceClient {
+  $transaction<T>(
+    callback: (
+      transaction: ManualDemoIngestionResourcePersistenceClient,
+    ) => Promise<T>,
+  ): Promise<T>;
 }
 
 interface ManualDemoIngestionResourceWriteData {
@@ -153,10 +170,16 @@ export interface ManualDemoIngestionDuplicateIssue {
   field: 'canonicalUrl';
 }
 
+export interface ManualDemoIngestionPersistenceIssue {
+  code: 'persistence.failed';
+  field: 'persistence';
+}
+
 export type ManualDemoIngestionIssue =
   | IngestionItemValidationError
   | IngestionNormalizationIssue
-  | ManualDemoIngestionDuplicateIssue;
+  | ManualDemoIngestionDuplicateIssue
+  | ManualDemoIngestionPersistenceIssue;
 
 // Item-level report
 // Each input item produces a compact result. The report exposes business status
@@ -264,58 +287,81 @@ function getUniqueTechnologyIds(draft: NormalizedResourceDraft): string[] {
   return [...new Set(draft.technologyIds)];
 }
 
+function buildStaleTechnologyDeleteWhere(
+  resourceId: string,
+  technologyIds: string[],
+) {
+  if (technologyIds.length === 0) {
+    return { resourceId };
+  }
+
+  return {
+    resourceId,
+    technologyId: {
+      notIn: technologyIds,
+    },
+  };
+}
+
 // Prisma resource persistence
-// `upsert` owns the canonical URL deduplication at database level. The small
-// pre-read only tells the manual report whether this run created or updated the
-// public resource.
+// `upsert` owns the canonical URL deduplication at database level. Resource and
+// join-table writes stay in one transaction so the public resource cannot be
+// updated without the technology links that describe it.
 export function createManualDemoIngestionPersistence(
   writer: ManualDemoIngestionResourceWriter,
 ): ManualDemoIngestionPersistencePort {
   return {
     async upsertResourceDraft(draft) {
-      const existingResource = await writer.resource.findUnique({
-        where: {
-          canonicalUrl: draft.canonicalUrl,
-        },
-        select: {
-          id: true,
-        },
-      });
-      const writeData = mapDraftToResourceWriteData(draft);
-      const resource = await writer.resource.upsert({
-        where: {
-          canonicalUrl: draft.canonicalUrl,
-        },
-        update: writeData,
-        create: {
-          ...writeData,
-          canonicalUrl: draft.canonicalUrl,
-        },
-        select: {
-          id: true,
-        },
-      });
-
-      for (const technologyId of getUniqueTechnologyIds(draft)) {
-        await writer.resourceTechnology.upsert({
+      return writer.$transaction(async (transaction) => {
+        const existingResource = await transaction.resource.findUnique({
           where: {
-            resourceId_technologyId: {
+            canonicalUrl: draft.canonicalUrl,
+          },
+          select: {
+            id: true,
+          },
+        });
+        const writeData = mapDraftToResourceWriteData(draft);
+        const resource = await transaction.resource.upsert({
+          where: {
+            canonicalUrl: draft.canonicalUrl,
+          },
+          update: writeData,
+          create: {
+            ...writeData,
+            canonicalUrl: draft.canonicalUrl,
+          },
+          select: {
+            id: true,
+          },
+        });
+        const technologyIds = getUniqueTechnologyIds(draft);
+
+        await transaction.resourceTechnology.deleteMany({
+          where: buildStaleTechnologyDeleteWhere(resource.id, technologyIds),
+        });
+
+        for (const technologyId of technologyIds) {
+          await transaction.resourceTechnology.upsert({
+            where: {
+              resourceId_technologyId: {
+                resourceId: resource.id,
+                technologyId,
+              },
+            },
+            update: {},
+            create: {
               resourceId: resource.id,
               technologyId,
             },
-          },
-          update: {},
-          create: {
-            resourceId: resource.id,
-            technologyId,
-          },
-        });
-      }
+          });
+        }
 
-      return {
-        resourceId: resource.id,
-        operation: existingResource ? 'updated' : 'created',
-      };
+        return {
+          resourceId: resource.id,
+          operation: existingResource ? 'updated' : 'created',
+        };
+      });
     },
   };
 }
@@ -397,20 +443,31 @@ export async function runManualDemoIngestion(
       continue;
     }
 
-    seenCanonicalUrls.add(normalization.draft.canonicalUrl);
+    try {
+      const persistenceResult =
+        await dependencies.persistence.upsertResourceDraft(normalization.draft);
 
-    const persistenceResult =
-      await dependencies.persistence.upsertResourceDraft(normalization.draft);
+      seenCanonicalUrls.add(normalization.draft.canonicalUrl);
 
-    itemReports.push({
-      title: validation.item.title,
-      sourceUrl: validation.item.sourceUrl,
-      status: persistenceResult.operation,
-      canonicalUrl: normalization.draft.canonicalUrl,
-      resourceId: persistenceResult.resourceId,
-      warnings: normalization.warnings,
-      errors: [],
-    });
+      itemReports.push({
+        title: validation.item.title,
+        sourceUrl: validation.item.sourceUrl,
+        status: persistenceResult.operation,
+        canonicalUrl: normalization.draft.canonicalUrl,
+        resourceId: persistenceResult.resourceId,
+        warnings: normalization.warnings,
+        errors: [],
+      });
+    } catch {
+      itemReports.push({
+        title: validation.item.title,
+        sourceUrl: validation.item.sourceUrl,
+        status: 'skipped',
+        canonicalUrl: normalization.draft.canonicalUrl,
+        warnings: normalization.warnings,
+        errors: [{ code: 'persistence.failed', field: 'persistence' }],
+      });
+    }
   }
 
   return {

@@ -52,6 +52,7 @@ export interface NormalizedResourceDraft {
 // inspect quality without exposing third-party payload content.
 export type IngestionNormalizationErrorCode =
   | 'source.notAllowlisted'
+  | 'sourceUrl.notAllowlisted'
   | 'source.inactive'
   | 'categoryFallback.missing'
   | 'publishedAt.invalid';
@@ -82,6 +83,30 @@ function normalizeLookupValue(value: string): string {
 
 function canonicalizeComparableUrl(rawUrl: string): string {
   return normalizeCanonicalUrl(rawUrl);
+}
+
+function isSourceUrlInsideAllowlistedSource(
+  sourceUrl: string,
+  allowlistedSourceUrl: string,
+): boolean {
+  const normalizedSourceUrl = new URL(canonicalizeComparableUrl(sourceUrl));
+  const normalizedAllowlistedSourceUrl = new URL(
+    canonicalizeComparableUrl(allowlistedSourceUrl),
+  );
+  const allowlistedPath = normalizedAllowlistedSourceUrl.pathname;
+
+  if (normalizedSourceUrl.origin !== normalizedAllowlistedSourceUrl.origin) {
+    return false;
+  }
+
+  if (allowlistedPath === '/') {
+    return true;
+  }
+
+  return (
+    normalizedSourceUrl.pathname === allowlistedPath ||
+    normalizedSourceUrl.pathname.startsWith(`${allowlistedPath}/`)
+  );
 }
 
 function parsePublishedAt(publishedAt: IngestionItem['publishedAt']): Date | null {
@@ -120,6 +145,13 @@ export function normalizeIngestionItem(
     return {
       success: false,
       errors: [{ code: 'source.inactive', field: 'source' }],
+    };
+  }
+
+  if (!isSourceUrlInsideAllowlistedSource(item.sourceUrl, source.url)) {
+    return {
+      success: false,
+      errors: [{ code: 'sourceUrl.notAllowlisted', field: 'sourceUrl' }],
     };
   }
 

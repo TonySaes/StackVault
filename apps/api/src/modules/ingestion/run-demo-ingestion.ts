@@ -1,4 +1,7 @@
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { PrismaClient } from '@prisma/client';
+import { config } from 'dotenv';
 
 import { demoIngestionItems } from './demo-ingestion-items.js';
 import {
@@ -8,6 +11,9 @@ import {
   type ManualDemoIngestionCatalogReader,
   type ManualDemoIngestionResourceWriter,
 } from './manual-demo-ingestion.js';
+
+const currentDir = dirname(fileURLToPath(import.meta.url));
+config({ path: resolve(currentDir, '../../../.env') });
 
 const prisma = new PrismaClient();
 
@@ -33,8 +39,11 @@ const resourceWriter: ManualDemoIngestionResourceWriter = {
     upsert: (args) => prisma.resource.upsert(args),
   },
   resourceTechnology: {
+    deleteMany: (args) => prisma.resourceTechnology.deleteMany(args),
     upsert: (args) => prisma.resourceTechnology.upsert(args),
   },
+  $transaction: (callback) =>
+    prisma.$transaction((transaction) => callback(transaction)),
 };
 
 function logReportSummary(
@@ -45,11 +54,23 @@ function logReportSummary(
   );
 
   for (const item of report.items) {
-    const issueCount = item.warnings.length + item.errors.length;
-    const issueSuffix = issueCount > 0 ? `, ${issueCount} signalements` : '';
+    const issueCodes = [...item.warnings, ...item.errors].map(
+      (issue) => issue.code,
+    );
+    const issueSuffix =
+      issueCodes.length > 0 ? `, signalements: ${issueCodes.join(', ')}` : '';
 
     console.log(`- ${item.status}: ${item.title}${issueSuffix}`);
   }
+}
+
+function hasBlockingReportIssues(
+  report: Awaited<ReturnType<typeof runManualDemoIngestion>>,
+) {
+  return (
+    report.skippedCount > 0 ||
+    report.items.some((item) => item.errors.length > 0)
+  );
 }
 
 async function main() {
@@ -62,6 +83,10 @@ async function main() {
   });
 
   logReportSummary(report);
+
+  if (hasBlockingReportIssues(report)) {
+    process.exitCode = 1;
+  }
 }
 
 main()
