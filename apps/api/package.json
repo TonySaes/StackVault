@@ -13,7 +13,8 @@
     "prisma:generate": "prisma generate --schema prisma/schema.prisma",
     "prisma:db:push": "prisma db push --schema prisma/schema.prisma",
     "prisma:seed": "tsx prisma/seed.ts",
-    "ingestion:demo": "tsx src/modules/ingestion/run-demo-ingestion.ts"
+    "ingestion:demo": "tsx src/modules/ingestion/run-demo-ingestion.ts",
+    "ingestion:rss-atom": "tsx src/modules/ingestion/run-rss-atom-ingestion.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.1.21",

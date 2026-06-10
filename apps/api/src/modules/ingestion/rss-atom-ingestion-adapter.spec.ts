@@ -46,6 +46,7 @@ const rssAtomSource: RssAtomIngestionSource = {
   id: 'source-react-blog',
   name: 'React Blog',
   url: 'https://react.dev/blog',
+  feedUrl: 'https://react.dev/rss.xml',
   status: 'active',
   type: RSS_ATOM_SOURCE_TYPE,
 };
@@ -255,7 +256,7 @@ describe('runRssAtomIngestionAdapter', () => {
     });
 
     assert.strictEqual(fetchFeed.mock.calls.length, 1);
-    assert.deepEqual(fetchFeed.mock.calls[0], ['https://react.dev/blog']);
+    assert.deepEqual(fetchFeed.mock.calls[0], ['https://react.dev/rss.xml']);
     assert.strictEqual(result.items.length, 1);
     assert.strictEqual(result.items[0]?.title, 'React Compiler release candidate');
     assert.deepEqual(result.entries[0]?.errors, []);

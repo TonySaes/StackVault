@@ -19,6 +19,7 @@ export interface RssAtomIngestionSource {
   id: string;
   name: string;
   url: string;
+  feedUrl?: string;
   status: string;
   type: string;
 }
@@ -406,9 +407,10 @@ export async function runRssAtomIngestionAdapter(
   }
 
   let feedXml: string;
+  const feedUrl = source.feedUrl ?? source.url;
 
   try {
-    feedXml = await dependencies.fetchFeed(source.url);
+    feedXml = await dependencies.fetchFeed(feedUrl);
   } catch {
     return {
       items: [],
