@@ -3,11 +3,14 @@ import { assert, describe, it, vi } from 'vitest';
 import {
   mapRssAtomEntriesToIngestionItems,
   parseRssAtomFeedEntries,
+  runRssAtomIngestion,
   runRssAtomIngestionAdapter,
   RSS_ATOM_SOURCE_TYPE,
   type RssAtomIngestionSource,
   type RssAtomParsedFeedEntry,
 } from './rss-atom-ingestion-adapter.js';
+import type { ManualDemoIngestionPersistencePort } from './manual-demo-ingestion.js';
+import type { IngestionNormalizationContext } from './normalize-ingestion-item.js';
 
 const rssFeed = `<?xml version="1.0" encoding="UTF-8" ?>
 <rss version="2.0">
@@ -46,6 +49,47 @@ const rssAtomSource: RssAtomIngestionSource = {
   status: 'active',
   type: RSS_ATOM_SOURCE_TYPE,
 };
+
+const normalizationContext: IngestionNormalizationContext = {
+  sources: [
+    {
+      id: 'source-react-blog',
+      name: 'React Blog',
+      url: 'https://react.dev/blog',
+      status: 'active',
+    },
+  ],
+  categories: [
+    {
+      id: 'category-release',
+      slug: 'release',
+      name: 'Release',
+    },
+    {
+      id: 'category-trend',
+      slug: 'trend',
+      name: 'Trend',
+    },
+  ],
+  technologies: [
+    {
+      id: 'technology-react',
+      slug: 'react',
+      name: 'React',
+      status: 'active',
+    },
+  ],
+  fallbackCategorySlug: 'trend',
+};
+
+function createPersistencePort() {
+  return {
+    upsertResourceDraft: vi.fn(async () => ({
+      resourceId: 'resource-react-compiler',
+      operation: 'created' as const,
+    })),
+  } satisfies ManualDemoIngestionPersistencePort;
+}
 
 describe('parseRssAtomFeedEntries', () => {
   it('extracts metadata from RSS entries without carrying full content bodies', () => {
@@ -271,5 +315,69 @@ describe('runRssAtomIngestionAdapter', () => {
       { code: 'feed.fetchFailed', field: 'fetchFeed' },
     ]);
     assert.strictEqual(JSON.stringify(result).includes('provider secret'), false);
+  });
+});
+
+describe('runRssAtomIngestion', () => {
+  it('passes RSS Atom adapter items through validation, normalization and persistence', async () => {
+    const fetchFeed = vi.fn(async () => rssFeed);
+    const persistence = createPersistencePort();
+
+    const result = await runRssAtomIngestion(rssAtomSource, {
+      fetchFeed,
+      normalizationContext,
+      persistence,
+    });
+
+    assert.strictEqual(fetchFeed.mock.calls.length, 1);
+    assert.strictEqual(persistence.upsertResourceDraft.mock.calls.length, 1);
+    assert.deepEqual(result.adapter.items[0]?.title, 'React Compiler release candidate');
+    assert.deepEqual(result.ingestion, {
+      processedCount: 1,
+      createdCount: 1,
+      updatedCount: 0,
+      skippedCount: 0,
+      items: [
+        {
+          title: 'React Compiler release candidate',
+          sourceUrl: 'https://react.dev/blog/2025/04/21/react-compiler-rc',
+          status: 'created',
+          canonicalUrl: 'https://react.dev/blog/2025/04/21/react-compiler-rc',
+          resourceId: 'resource-react-compiler',
+          warnings: [],
+          errors: [],
+        },
+      ],
+    });
+  });
+
+  it('does not call persistence when the adapter rejects the source before fetch', async () => {
+    const fetchFeed = vi.fn(async () => rssFeed);
+    const persistence = createPersistencePort();
+
+    const result = await runRssAtomIngestion(
+      {
+        ...rssAtomSource,
+        status: 'inactive',
+      },
+      {
+        fetchFeed,
+        normalizationContext,
+        persistence,
+      },
+    );
+
+    assert.strictEqual(fetchFeed.mock.calls.length, 0);
+    assert.strictEqual(persistence.upsertResourceDraft.mock.calls.length, 0);
+    assert.deepEqual(result.adapter.entries[0]?.errors, [
+      { code: 'source.inactive', field: 'source.status' },
+    ]);
+    assert.deepEqual(result.ingestion, {
+      processedCount: 0,
+      createdCount: 0,
+      updatedCount: 0,
+      skippedCount: 0,
+      items: [],
+    });
   });
 });

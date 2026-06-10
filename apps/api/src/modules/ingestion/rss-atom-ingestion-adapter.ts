@@ -4,6 +4,11 @@ import {
   MAX_INGESTION_SHORT_SUMMARY_LENGTH,
   type IngestionItem,
 } from './ingestion-item.js';
+import {
+  type ManualDemoIngestionDependencies,
+  type ManualDemoIngestionReport,
+  runManualDemoIngestion,
+} from './manual-demo-ingestion.js';
 
 // RSS/Atom source contract
 // `Source.type` is a plain Prisma string today. This constant gives the adapter
@@ -79,6 +84,15 @@ export interface RssAtomIngestionEntryReport {
 export interface RssAtomIngestionAdapterResult {
   items: IngestionItem[];
   entries: RssAtomIngestionEntryReport[];
+}
+
+export interface RssAtomIngestionRunDependencies
+  extends RssAtomIngestionDependencies,
+    ManualDemoIngestionDependencies {}
+
+export interface RssAtomIngestionRunResult {
+  adapter: RssAtomIngestionAdapterResult;
+  ingestion: ManualDemoIngestionReport;
 }
 
 type XmlRecord = Record<string, unknown>;
@@ -421,4 +435,21 @@ export async function runRssAtomIngestionAdapter(
       ],
     };
   }
+}
+
+// Pipeline bridge
+// This keeps the RSS/Atom adapter focused on external feed concerns, then hands
+// the resulting items to the existing validation -> normalization -> persistence
+// flow. The dependency object is intentionally injectable end to end.
+export async function runRssAtomIngestion(
+  source: RssAtomIngestionSource,
+  dependencies: RssAtomIngestionRunDependencies,
+): Promise<RssAtomIngestionRunResult> {
+  const adapter = await runRssAtomIngestionAdapter(source, dependencies);
+  const ingestion = await runManualDemoIngestion(adapter.items, dependencies);
+
+  return {
+    adapter,
+    ingestion,
+  };
 }
