@@ -49,7 +49,7 @@ const demoSources = [
   {
     name: 'React Blog',
     url: 'https://react.dev/blog',
-    type: 'public_metadata',
+    type: 'rss_atom',
     status: 'active',
   },
   {
