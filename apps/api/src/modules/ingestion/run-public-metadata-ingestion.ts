@@ -4,6 +4,13 @@ import { PrismaClient } from '@prisma/client';
 import { config } from 'dotenv';
 
 import {
+  createIngestionErrorLogPersistence,
+  recordIngestionError,
+  type IngestionErrorLogPersistencePort,
+  type IngestionErrorLogSource,
+  type IngestionErrorLogWriter,
+} from './ingestion-error-log.js';
+import {
   createManualDemoIngestionPersistence,
   loadManualDemoIngestionContext,
   type ManualDemoIngestionCatalogReader,
@@ -51,6 +58,14 @@ const resourceWriter: ManualDemoIngestionResourceWriter = {
   },
   $transaction: (callback) =>
     prisma.$transaction((transaction) => callback(transaction)),
+};
+
+const errorLogWriter: IngestionErrorLogWriter = {
+  ingestionError: {
+    create: (args) => prisma.ingestionError.create(args),
+    findMany: (args) => prisma.ingestionError.findMany(args),
+    deleteMany: (args) => prisma.ingestionError.deleteMany(args),
+  },
 };
 
 const fetchPage: PublicMetadataPageFetcher = async (url) => {
@@ -155,6 +170,53 @@ function hasBlockingIssues(
   );
 }
 
+async function recordPublicMetadataIngestionErrors(
+  source: IngestionErrorLogSource,
+  result: Awaited<ReturnType<typeof runPublicMetadataIngestion>>,
+  errorLogPersistence: IngestionErrorLogPersistencePort,
+) {
+  let recordedCount = 0;
+
+  // Adapter errors happen while fetching or mapping page metadata. Warnings are
+  // deliberately ignored here so the future admin log reports blockers, not
+  // acceptable metadata gaps like a missing optional publication date.
+  for (const entry of result.adapter.entries) {
+    for (const error of entry.errors) {
+      await recordIngestionError(
+        {
+          source,
+          errorType: error.code,
+          message: `Public metadata adapter error ${error.code} on ${error.field}.`,
+        },
+        {
+          persistence: errorLogPersistence,
+        },
+      );
+      recordedCount += 1;
+    }
+  }
+
+  // Ingestion errors happen after the page became an internal item candidate:
+  // validation, normalization, canonical deduplication or persistence.
+  for (const item of result.ingestion.items) {
+    for (const error of item.errors) {
+      await recordIngestionError(
+        {
+          source,
+          errorType: error.code,
+          message: `Public metadata ingestion error ${error.code} on ${error.field}.`,
+        },
+        {
+          persistence: errorLogPersistence,
+        },
+      );
+      recordedCount += 1;
+    }
+  }
+
+  return recordedCount;
+}
+
 async function findSourceByUrl(rawSourceUrl: string) {
   return prisma.source.findUnique({
     where: {
@@ -182,15 +244,23 @@ async function main() {
   const normalizationContext =
     await loadManualDemoIngestionContext(catalogReader);
   const persistence = createManualDemoIngestionPersistence(resourceWriter);
+  const errorLogPersistence =
+    createIngestionErrorLogPersistence(errorLogWriter);
   const result = await runPublicMetadataIngestion(source, {
     fetchPage,
     normalizationContext,
     persistence,
   });
+  const recordedErrorCount = await recordPublicMetadataIngestionErrors(
+    source,
+    result,
+    errorLogPersistence,
+  );
 
   console.log(
     `Ingestion metadonnees publiques terminee: ${result.adapter.items.length} items adaptes, ${result.ingestion.createdCount} crees, ${result.ingestion.updatedCount} mis a jour, ${result.ingestion.skippedCount} ignores.`,
   );
+  console.log(`Erreurs d'ingestion journalisees: ${recordedErrorCount}.`);
   logAdapterEntries(result.adapter.entries);
   logIngestionItems(result.ingestion.items);
 
