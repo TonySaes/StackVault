@@ -1,9 +1,12 @@
-import { assert, describe, it } from 'vitest';
+import { assert, describe, it, vi } from 'vitest';
 
+import type { ManualDemoIngestionPersistencePort } from './manual-demo-ingestion.js';
+import type { IngestionNormalizationContext } from './normalize-ingestion-item.js';
 import {
   mapPublicMetadataPageToIngestionItem,
   parsePublicMetadataPage,
   PUBLIC_METADATA_SOURCE_TYPE,
+  runPublicMetadataIngestion,
   runPublicMetadataIngestionAdapter,
   type PublicMetadataIngestionSource,
 } from './public-metadata-ingestion-adapter.js';
@@ -16,6 +19,48 @@ const publicMetadataSource: PublicMetadataIngestionSource = {
   status: 'active',
   type: PUBLIC_METADATA_SOURCE_TYPE,
 };
+
+const normalizationContext: IngestionNormalizationContext = {
+  sources: [
+    {
+      id: 'source-node-blog',
+      name: 'Node.js Blog',
+      url: 'https://nodejs.org/en/blog',
+      status: 'active',
+    },
+  ],
+  categories: [
+    {
+      id: 'category-trend',
+      slug: 'trend',
+      name: 'Trend',
+    },
+  ],
+  technologies: [
+    {
+      id: 'technology-node-js',
+      slug: 'node-js',
+      name: 'Node.js',
+      status: 'active',
+    },
+  ],
+  fallbackCategorySlug: 'trend',
+};
+
+function createPersistencePort() {
+  return {
+    upsertResourceDraft: vi.fn(
+      async (
+        _draft: Parameters<
+          ManualDemoIngestionPersistencePort['upsertResourceDraft']
+        >[0],
+      ) => ({
+        resourceId: 'resource-node-blog',
+        operation: 'created' as const,
+      }),
+    ),
+  } satisfies ManualDemoIngestionPersistencePort;
+}
 
 describe('parsePublicMetadataPage', () => {
   it('extracts Open Graph metadata from a public HTML page', () => {
@@ -287,5 +332,57 @@ describe('runPublicMetadataIngestionAdapter', () => {
       JSON.stringify(result).includes('external provider payload'),
       false,
     );
+  });
+});
+
+describe('runPublicMetadataIngestion', () => {
+  it('passes public metadata items through validation, normalization and persistence', async () => {
+    const fetchPage = vi.fn(async () => `<!doctype html>
+<html>
+  <head>
+    <meta property="og:title" content="Node.js public metadata" />
+    <meta property="og:description" content="Signal public issu des metadonnees." />
+    <meta property="article:published_time" content="2025-05-14T00:00:00Z" />
+  </head>
+</html>`);
+    const persistence = createPersistencePort();
+
+    const result = await runPublicMetadataIngestion(publicMetadataSource, {
+      fetchPage,
+      normalizationContext,
+      persistence,
+    });
+
+    assert.strictEqual(fetchPage.mock.calls.length, 1);
+    assert.strictEqual(persistence.upsertResourceDraft.mock.calls.length, 1);
+    assert.deepEqual(persistence.upsertResourceDraft.mock.calls[0]?.[0], {
+      sourceId: 'source-node-blog',
+      categoryId: 'category-trend',
+      title: 'Node.js public metadata',
+      sourceUrl: 'https://nodejs.org/en/blog',
+      canonicalUrl: 'https://nodejs.org/en/blog',
+      publishedAt: new Date('2025-05-14T00:00:00Z'),
+      shortSummary: 'Signal public issu des metadonnees.',
+      lifecycleStatus: 'active',
+      linkStatus: 'unknown',
+      technologyIds: ['technology-node-js'],
+    });
+    assert.deepEqual(result.ingestion, {
+      processedCount: 1,
+      createdCount: 1,
+      updatedCount: 0,
+      skippedCount: 0,
+      items: [
+        {
+          title: 'Node.js public metadata',
+          sourceUrl: 'https://nodejs.org/en/blog',
+          status: 'created',
+          canonicalUrl: 'https://nodejs.org/en/blog',
+          resourceId: 'resource-node-blog',
+          warnings: [],
+          errors: [],
+        },
+      ],
+    });
   });
 });

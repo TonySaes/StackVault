@@ -2,6 +2,11 @@ import {
   MAX_INGESTION_SHORT_SUMMARY_LENGTH,
   type IngestionItem,
 } from './ingestion-item.js';
+import {
+  type ManualDemoIngestionDependencies,
+  type ManualDemoIngestionReport,
+  runManualDemoIngestion,
+} from './manual-demo-ingestion.js';
 
 // Public metadata source contract
 // `Source.type` stays a plain Prisma string for now. This constant gives the
@@ -79,6 +84,15 @@ export interface PublicMetadataIngestionEntryReport {
 export interface PublicMetadataIngestionAdapterResult {
   items: IngestionItem[];
   entries: PublicMetadataIngestionEntryReport[];
+}
+
+export interface PublicMetadataIngestionRunDependencies
+  extends PublicMetadataIngestionDependencies,
+    ManualDemoIngestionDependencies {}
+
+export interface PublicMetadataIngestionRunResult {
+  adapter: PublicMetadataIngestionAdapterResult;
+  ingestion: ManualDemoIngestionReport;
 }
 
 type HtmlAttributeMap = Record<string, string>;
@@ -392,5 +406,23 @@ export function mapPublicMetadataPageToIngestionItem(
         errors: [],
       },
     ],
+  };
+}
+
+// Pipeline bridge
+// The adapter owns the external page boundary, then the existing manual
+// ingestion flow owns validation, normalization and persistence. Keeping this
+// bridge thin makes the future command a small caller instead of a second
+// ingestion implementation.
+export async function runPublicMetadataIngestion(
+  source: PublicMetadataIngestionSource,
+  dependencies: PublicMetadataIngestionRunDependencies,
+): Promise<PublicMetadataIngestionRunResult> {
+  const adapter = await runPublicMetadataIngestionAdapter(source, dependencies);
+  const ingestion = await runManualDemoIngestion(adapter.items, dependencies);
+
+  return {
+    adapter,
+    ingestion,
   };
 }
