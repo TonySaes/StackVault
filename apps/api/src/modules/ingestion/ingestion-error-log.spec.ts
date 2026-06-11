@@ -7,9 +7,11 @@ import {
   type IngestionErrorLogPersistencePort,
   type IngestionErrorLogWriter,
   MAX_INGESTION_ERROR_MESSAGE_LENGTH,
+  MAX_INGESTION_SOURCE_STATUS_LENGTH,
   recordIngestionError,
   recordIngestionReportErrors,
   sanitizeIngestionErrorMessage,
+  sanitizeIngestionSourceStatus,
   sanitizeIngestionErrorType,
 } from './ingestion-error-log.js';
 
@@ -101,11 +103,29 @@ describe('sanitizeIngestionErrorMessage', () => {
       sanitizeIngestionErrorMessage('<rss><channel>Full feed</channel></rss>'),
       nonSensitiveFallbackMessage,
     );
+    assert.strictEqual(
+      sanitizeIngestionErrorMessage('<payload>Provider payload</payload>'),
+      nonSensitiveFallbackMessage,
+    );
+    assert.strictEqual(
+      sanitizeIngestionErrorMessage('<?xml version="1.0"?><payload />'),
+      nonSensitiveFallbackMessage,
+    );
   });
 
   it('replaces secret-bearing messages and stack traces', () => {
     assert.strictEqual(
       sanitizeIngestionErrorMessage('Authorization: Bearer provider-token'),
+      nonSensitiveFallbackMessage,
+    );
+    assert.strictEqual(
+      sanitizeIngestionErrorMessage('Bearer eyJhbGciOiJIUzI1NiJ9.secret'),
+      nonSensitiveFallbackMessage,
+    );
+    assert.strictEqual(
+      sanitizeIngestionErrorMessage(
+        'JWT eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.signature',
+      ),
       nonSensitiveFallbackMessage,
     );
     assert.strictEqual(
@@ -121,6 +141,23 @@ describe('sanitizeIngestionErrorMessage', () => {
 
     assert.strictEqual(message.length, MAX_INGESTION_ERROR_MESSAGE_LENGTH);
     assert.strictEqual(message.endsWith('...'), true);
+  });
+});
+
+describe('sanitizeIngestionSourceStatus', () => {
+  it('normalizes and bounds the source status snapshot', () => {
+    const status = sanitizeIngestionSourceStatus(`  ${'active'.repeat(30)}  `);
+
+    assert.strictEqual(status.length, MAX_INGESTION_SOURCE_STATUS_LENGTH);
+    assert.strictEqual(status.endsWith('...'), true);
+  });
+
+  it('replaces empty or suspicious source statuses with an internal fallback', () => {
+    assert.strictEqual(sanitizeIngestionSourceStatus('   '), 'unknown');
+    assert.strictEqual(
+      sanitizeIngestionSourceStatus('<status>active</status>'),
+      'unknown',
+    );
   });
 });
 
@@ -353,10 +390,13 @@ describe('createIngestionErrorLogPersistence', () => {
         create: vi.fn().mockResolvedValue({
           id: '7eb45381-6b55-4692-8d54-f5893d71441d',
         }),
-        findMany: vi.fn().mockResolvedValue([
-          { id: 'stale-error-1' },
-          { id: 'stale-error-2' },
-        ]),
+        findMany: vi
+          .fn()
+          .mockResolvedValueOnce([
+            { id: 'stale-error-1' },
+            { id: 'stale-error-2' },
+          ])
+          .mockResolvedValueOnce([]),
         deleteMany: vi.fn().mockResolvedValue({ count: 2 }),
       },
     };
@@ -379,6 +419,24 @@ describe('createIngestionErrorLogPersistence', () => {
             { id: 'desc' },
           ],
           skip: 20,
+          take: 100,
+          select: {
+            id: true,
+          },
+        },
+      ],
+      [
+        {
+          where: {
+            sourceId: 'dc0db0b4-5670-4285-8f4d-7ef4cf68af89',
+          },
+          orderBy: [
+            { occurredAt: 'desc' },
+            { createdAt: 'desc' },
+            { id: 'desc' },
+          ],
+          skip: 20,
+          take: 100,
           select: {
             id: true,
           },

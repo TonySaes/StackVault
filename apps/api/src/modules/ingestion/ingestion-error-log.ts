@@ -5,6 +5,9 @@
 export const DEFAULT_INGESTION_ERROR_HISTORY_LIMIT = 20;
 export const MAX_INGESTION_ERROR_MESSAGE_LENGTH = 500;
 export const MAX_INGESTION_ERROR_TYPE_LENGTH = 120;
+export const MAX_INGESTION_SOURCE_STATUS_LENGTH = 80;
+
+const PRUNE_INGESTION_ERROR_BATCH_SIZE = 100;
 
 export interface IngestionErrorLogSource {
   id: string;
@@ -81,6 +84,7 @@ export interface IngestionErrorLogWriter {
         { id: 'desc' },
       ];
       skip: number;
+      take: number;
       select: {
         id: true;
       };
@@ -124,11 +128,16 @@ export interface RecordIngestionReportErrorsInput {
 const FALLBACK_INGESTION_ERROR_TYPE = 'ingestion.unknown';
 const FALLBACK_INGESTION_ERROR_MESSAGE =
   'Ingestion failed with a non-sensitive internal error code.';
+const FALLBACK_INGESTION_SOURCE_STATUS = 'unknown';
 const CONTROL_CHARACTER_PATTERN = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g;
 const SAFE_ERROR_TYPE_PATTERN = /^[a-zA-Z0-9._:-]+$/;
 const SUSPICIOUS_MESSAGE_PATTERNS = [
-  /<\s*(?:!doctype|html|head|body|script|style|rss|feed|entry|item|article|main|section|div|span|meta|title)\b/i,
-  /(?:token|secret|api[_-]?key|authorization|bearer|password)\s*[:=]/i,
+  /<\?xml\b/i,
+  /<!doctype\b/i,
+  /<\/?[a-z][a-z0-9:-]*(?:\s[^<>]*)?>/i,
+  /(?:token|secret|api[_-]?key|authorization|password)\s*[:=]\s*\S+/i,
+  /\bbearer\s+[a-z0-9._~+/=-]+/i,
+  /\beyJ[a-z0-9_-]+\.[a-z0-9_-]+\.[a-z0-9_-]+\b/i,
   /-----BEGIN [A-Z ]+-----/,
   /\bat\s+(?:\S+\s+\(|file:|node:internal\/|.*\.(?:ts|js):\d+:\d+)/i,
 ];
@@ -192,6 +201,19 @@ export function sanitizeIngestionErrorMessage(
   return truncate(normalizedMessage, MAX_INGESTION_ERROR_MESSAGE_LENGTH);
 }
 
+// Source status normalization
+// Source statuses are internal operational labels. They are still normalized
+// before persistence because the error table stores a bounded snapshot.
+export function sanitizeIngestionSourceStatus(status: string): string {
+  const normalizedStatus = normalizeWhitespace(status);
+
+  if (normalizedStatus.length === 0 || isSuspiciousMessage(normalizedStatus)) {
+    return FALLBACK_INGESTION_SOURCE_STATUS;
+  }
+
+  return truncate(normalizedStatus, MAX_INGESTION_SOURCE_STATUS_LENGTH);
+}
+
 // Log entry mapping
 // This pure mapper is the single place where external ingestion reports become
 // rows ready for persistence. Later increments can call it from RSS/Atom and
@@ -204,7 +226,7 @@ export function buildIngestionErrorLogEntry(
     occurredAt: input.occurredAt ?? new Date(),
     errorType: sanitizeIngestionErrorType(input.errorType),
     message: sanitizeIngestionErrorMessage(input.message),
-    sourceStatus: input.source.status,
+    sourceStatus: sanitizeIngestionSourceStatus(input.source.status),
   };
 }
 
@@ -281,9 +303,9 @@ export async function recordIngestionReportErrors(
 }
 
 // Prisma persistence adapter
-// The pruning query asks Prisma for rows after the kept window, then deletes
-// exactly those IDs. This avoids a raw SQL subquery while keeping the retention
-// rule explicit and testable.
+// The pruning query asks Prisma for rows after the kept window in bounded
+// batches, then deletes exactly those IDs. This avoids loading a large history
+// into memory while keeping the retention rule explicit and testable.
 export function createIngestionErrorLogPersistence(
   writer: IngestionErrorLogWriter,
 ): IngestionErrorLogPersistencePort {
@@ -308,34 +330,37 @@ export function createIngestionErrorLogPersistence(
     },
 
     async pruneIngestionErrorsForSource(sourceId, keepLatest) {
-      const staleErrors = await writer.ingestionError.findMany({
-        where: {
-          sourceId,
-        },
-        orderBy: [
-          { occurredAt: 'desc' },
-          { createdAt: 'desc' },
-          { id: 'desc' },
-        ],
-        skip: keepLatest,
-        select: {
-          id: true,
-        },
-      });
-      const staleErrorIds = staleErrors.map((error) => error.id);
-
-      if (staleErrorIds.length === 0) {
-        return;
-      }
-
-      await writer.ingestionError.deleteMany({
-        where: {
-          sourceId,
-          id: {
-            in: staleErrorIds,
+      while (true) {
+        const staleErrors = await writer.ingestionError.findMany({
+          where: {
+            sourceId,
           },
-        },
-      });
+          orderBy: [
+            { occurredAt: 'desc' },
+            { createdAt: 'desc' },
+            { id: 'desc' },
+          ],
+          skip: keepLatest,
+          take: PRUNE_INGESTION_ERROR_BATCH_SIZE,
+          select: {
+            id: true,
+          },
+        });
+        const staleErrorIds = staleErrors.map((error) => error.id);
+
+        if (staleErrorIds.length === 0) {
+          return;
+        }
+
+        await writer.ingestionError.deleteMany({
+          where: {
+            sourceId,
+            id: {
+              in: staleErrorIds,
+            },
+          },
+        });
+      }
     },
   };
 }
