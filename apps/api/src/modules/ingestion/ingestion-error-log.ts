@@ -49,6 +49,53 @@ export interface RecordIngestionErrorDependencies {
   historyLimit?: number;
 }
 
+interface IngestionErrorLogRecord {
+  id: string;
+}
+
+// Prisma persistence boundary
+// PrismaClient matches this shape once the schema is generated, while tests can
+// provide a small object with the same methods. This keeps database calls
+// isolated from the ingestion adapters and runners.
+export interface IngestionErrorLogWriter {
+  ingestionError: {
+    create(args: {
+      data: {
+        sourceId: string;
+        occurredAt: Date;
+        errorType: string;
+        message: string;
+        sourceStatus: string;
+      };
+      select: {
+        id: true;
+      };
+    }): Promise<IngestionErrorLogRecord>;
+    findMany(args: {
+      where: {
+        sourceId: string;
+      };
+      orderBy: [
+        { occurredAt: 'desc' },
+        { createdAt: 'desc' },
+        { id: 'desc' },
+      ];
+      skip: number;
+      select: {
+        id: true;
+      };
+    }): Promise<IngestionErrorLogRecord[]>;
+    deleteMany(args: {
+      where: {
+        sourceId: string;
+        id: {
+          in: string[];
+        };
+      };
+    }): Promise<unknown>;
+  };
+}
+
 const FALLBACK_INGESTION_ERROR_TYPE = 'ingestion.unknown';
 const FALLBACK_INGESTION_ERROR_MESSAGE =
   'Ingestion failed with a non-sensitive internal error code.';
@@ -165,4 +212,64 @@ export async function recordIngestionError(
   );
 
   return result;
+}
+
+// Prisma persistence adapter
+// The pruning query asks Prisma for rows after the kept window, then deletes
+// exactly those IDs. This avoids a raw SQL subquery while keeping the retention
+// rule explicit and testable.
+export function createIngestionErrorLogPersistence(
+  writer: IngestionErrorLogWriter,
+): IngestionErrorLogPersistencePort {
+  return {
+    async createIngestionError(entry) {
+      const ingestionError = await writer.ingestionError.create({
+        data: {
+          sourceId: entry.sourceId,
+          occurredAt: entry.occurredAt,
+          errorType: entry.errorType,
+          message: entry.message,
+          sourceStatus: entry.sourceStatus,
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      return {
+        ingestionErrorId: ingestionError.id,
+      };
+    },
+
+    async pruneIngestionErrorsForSource(sourceId, keepLatest) {
+      const staleErrors = await writer.ingestionError.findMany({
+        where: {
+          sourceId,
+        },
+        orderBy: [
+          { occurredAt: 'desc' },
+          { createdAt: 'desc' },
+          { id: 'desc' },
+        ],
+        skip: keepLatest,
+        select: {
+          id: true,
+        },
+      });
+      const staleErrorIds = staleErrors.map((error) => error.id);
+
+      if (staleErrorIds.length === 0) {
+        return;
+      }
+
+      await writer.ingestionError.deleteMany({
+        where: {
+          sourceId,
+          id: {
+            in: staleErrorIds,
+          },
+        },
+      });
+    },
+  };
 }

@@ -2,8 +2,10 @@ import { assert, describe, it, vi } from 'vitest';
 
 import {
   buildIngestionErrorLogEntry,
+  createIngestionErrorLogPersistence,
   DEFAULT_INGESTION_ERROR_HISTORY_LIMIT,
   type IngestionErrorLogPersistencePort,
+  type IngestionErrorLogWriter,
   MAX_INGESTION_ERROR_MESSAGE_LENGTH,
   recordIngestionError,
   sanitizeIngestionErrorMessage,
@@ -188,5 +190,122 @@ describe('recordIngestionError', () => {
     assert.deepEqual(vi.mocked(persistence.pruneIngestionErrorsForSource).mock.calls, [
       ['dc0db0b4-5670-4285-8f4d-7ef4cf68af89', 5],
     ]);
+  });
+});
+
+describe('createIngestionErrorLogPersistence', () => {
+  it('creates an ingestion error through a Prisma-compatible writer', async () => {
+    const writer: IngestionErrorLogWriter = {
+      ingestionError: {
+        create: vi.fn().mockResolvedValue({
+          id: '7eb45381-6b55-4692-8d54-f5893d71441d',
+        }),
+        findMany: vi.fn().mockResolvedValue([]),
+        deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+      },
+    };
+    const persistence = createIngestionErrorLogPersistence(writer);
+    const result = await persistence.createIngestionError({
+      sourceId: 'dc0db0b4-5670-4285-8f4d-7ef4cf68af89',
+      occurredAt: new Date('2026-06-11T10:15:00.000Z'),
+      errorType: 'page.fetchFailed',
+      message: 'Source returned a fetch error.',
+      sourceStatus: 'active',
+    });
+
+    assert.deepEqual(result, {
+      ingestionErrorId: '7eb45381-6b55-4692-8d54-f5893d71441d',
+    });
+    assert.deepEqual(vi.mocked(writer.ingestionError.create).mock.calls, [
+      [
+        {
+          data: {
+            sourceId: 'dc0db0b4-5670-4285-8f4d-7ef4cf68af89',
+            occurredAt: new Date('2026-06-11T10:15:00.000Z'),
+            errorType: 'page.fetchFailed',
+            message: 'Source returned a fetch error.',
+            sourceStatus: 'active',
+          },
+          select: {
+            id: true,
+          },
+        },
+      ],
+    ]);
+  });
+
+  it('prunes errors after the kept source history window', async () => {
+    const writer: IngestionErrorLogWriter = {
+      ingestionError: {
+        create: vi.fn().mockResolvedValue({
+          id: '7eb45381-6b55-4692-8d54-f5893d71441d',
+        }),
+        findMany: vi.fn().mockResolvedValue([
+          { id: 'stale-error-1' },
+          { id: 'stale-error-2' },
+        ]),
+        deleteMany: vi.fn().mockResolvedValue({ count: 2 }),
+      },
+    };
+    const persistence = createIngestionErrorLogPersistence(writer);
+
+    await persistence.pruneIngestionErrorsForSource(
+      'dc0db0b4-5670-4285-8f4d-7ef4cf68af89',
+      20,
+    );
+
+    assert.deepEqual(vi.mocked(writer.ingestionError.findMany).mock.calls, [
+      [
+        {
+          where: {
+            sourceId: 'dc0db0b4-5670-4285-8f4d-7ef4cf68af89',
+          },
+          orderBy: [
+            { occurredAt: 'desc' },
+            { createdAt: 'desc' },
+            { id: 'desc' },
+          ],
+          skip: 20,
+          select: {
+            id: true,
+          },
+        },
+      ],
+    ]);
+    assert.deepEqual(vi.mocked(writer.ingestionError.deleteMany).mock.calls, [
+      [
+        {
+          where: {
+            sourceId: 'dc0db0b4-5670-4285-8f4d-7ef4cf68af89',
+            id: {
+              in: ['stale-error-1', 'stale-error-2'],
+            },
+          },
+        },
+      ],
+    ]);
+  });
+
+  it('does not delete anything when the source history is already within limit', async () => {
+    const writer: IngestionErrorLogWriter = {
+      ingestionError: {
+        create: vi.fn().mockResolvedValue({
+          id: '7eb45381-6b55-4692-8d54-f5893d71441d',
+        }),
+        findMany: vi.fn().mockResolvedValue([]),
+        deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+      },
+    };
+    const persistence = createIngestionErrorLogPersistence(writer);
+
+    await persistence.pruneIngestionErrorsForSource(
+      'dc0db0b4-5670-4285-8f4d-7ef4cf68af89',
+      20,
+    );
+
+    assert.strictEqual(
+      vi.mocked(writer.ingestionError.deleteMany).mock.calls.length,
+      0,
+    );
   });
 });
