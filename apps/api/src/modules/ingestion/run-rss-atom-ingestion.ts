@@ -4,6 +4,13 @@ import { PrismaClient } from '@prisma/client';
 import { config } from 'dotenv';
 
 import {
+  createIngestionErrorLogPersistence,
+  recordIngestionError,
+  type IngestionErrorLogPersistencePort,
+  type IngestionErrorLogSource,
+  type IngestionErrorLogWriter,
+} from './ingestion-error-log.js';
+import {
   createManualDemoIngestionPersistence,
   loadManualDemoIngestionContext,
   type ManualDemoIngestionCatalogReader,
@@ -48,6 +55,14 @@ const resourceWriter: ManualDemoIngestionResourceWriter = {
   },
   $transaction: (callback) =>
     prisma.$transaction((transaction) => callback(transaction)),
+};
+
+const errorLogWriter: IngestionErrorLogWriter = {
+  ingestionError: {
+    create: (args) => prisma.ingestionError.create(args),
+    findMany: (args) => prisma.ingestionError.findMany(args),
+    deleteMany: (args) => prisma.ingestionError.deleteMany(args),
+  },
 };
 
 const fetchFeed: RssAtomFeedFetcher = async (url) => {
@@ -144,6 +159,54 @@ function hasBlockingIssues(
   );
 }
 
+async function recordRssAtomIngestionErrors(
+  source: IngestionErrorLogSource,
+  result: Awaited<ReturnType<typeof runRssAtomIngestion>>,
+  errorLogPersistence: IngestionErrorLogPersistencePort,
+) {
+  let recordedCount = 0;
+
+  // Adapter errors describe source/feed failures before normalization.
+  // Warnings stay out of the persistent error log to keep future admin screens
+  // focused on blockers rather than low-priority quality signals.
+  for (const entry of result.adapter.entries) {
+    for (const error of entry.errors) {
+      await recordIngestionError(
+        {
+          source,
+          errorType: error.code,
+          message: `RSS/Atom adapter error ${error.code} on ${error.field}.`,
+        },
+        {
+          persistence: errorLogPersistence,
+        },
+      );
+      recordedCount += 1;
+    }
+  }
+
+  // Ingestion errors happen after adaptation: validation, normalization,
+  // canonical deduplication or persistence. They use the same source snapshot
+  // so the future admin log can group failures by allowlisted source.
+  for (const item of result.ingestion.items) {
+    for (const error of item.errors) {
+      await recordIngestionError(
+        {
+          source,
+          errorType: error.code,
+          message: `RSS/Atom ingestion error ${error.code} on ${error.field}.`,
+        },
+        {
+          persistence: errorLogPersistence,
+        },
+      );
+      recordedCount += 1;
+    }
+  }
+
+  return recordedCount;
+}
+
 async function findSourceByUrl(rawSourceUrl: string) {
   return prisma.source.findUnique({
     where: {
@@ -171,15 +234,23 @@ async function main() {
   const normalizationContext =
     await loadManualDemoIngestionContext(catalogReader);
   const persistence = createManualDemoIngestionPersistence(resourceWriter);
+  const errorLogPersistence =
+    createIngestionErrorLogPersistence(errorLogWriter);
   const result = await runRssAtomIngestion(source, {
     fetchFeed,
     normalizationContext,
     persistence,
   });
+  const recordedErrorCount = await recordRssAtomIngestionErrors(
+    source,
+    result,
+    errorLogPersistence,
+  );
 
   console.log(
     `Ingestion RSS/Atom terminee: ${result.adapter.items.length} items adaptes, ${result.ingestion.createdCount} crees, ${result.ingestion.updatedCount} mis a jour, ${result.ingestion.skippedCount} ignores.`,
   );
+  console.log(`Erreurs d'ingestion journalisees: ${recordedErrorCount}.`);
   logAdapterEntries(result.adapter.entries);
   logIngestionItems(result.ingestion.items);
 
