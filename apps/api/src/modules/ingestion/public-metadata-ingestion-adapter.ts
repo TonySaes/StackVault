@@ -113,9 +113,29 @@ const PUBLICATION_DATE_META_KEYS = [
   'pubdate',
 ];
 const MAX_RESOURCE_TITLE_LENGTH = 240;
+const MAX_UNICODE_CODE_POINT = 0x10ffff;
+const CLEAR_PUBLICATION_DATE_PATTERN =
+  /^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:?\d{2}))?$/;
 
 function getNonEmptyString(input: string | null): string | null {
   return input !== null && input.trim().length > 0 ? input.trim() : null;
+}
+
+function decodeNumericHtmlEntity(entity: string, value: string): string {
+  const normalizedValue = value.toLowerCase();
+  const codePoint = normalizedValue.startsWith('#x')
+    ? Number.parseInt(normalizedValue.slice(2), 16)
+    : Number.parseInt(normalizedValue.slice(1), 10);
+
+  if (
+    !Number.isInteger(codePoint) ||
+    codePoint < 0 ||
+    codePoint > MAX_UNICODE_CODE_POINT
+  ) {
+    return entity;
+  }
+
+  return String.fromCodePoint(codePoint);
 }
 
 function decodeBasicHtmlEntities(input: string): string {
@@ -124,12 +144,8 @@ function decodeBasicHtmlEntities(input: string): string {
     (entity, value: string) => {
       const normalizedValue = value.toLowerCase();
 
-      if (normalizedValue.startsWith('#x')) {
-        return String.fromCodePoint(Number.parseInt(normalizedValue.slice(2), 16));
-      }
-
       if (normalizedValue.startsWith('#')) {
-        return String.fromCodePoint(Number.parseInt(normalizedValue.slice(1), 10));
+        return decodeNumericHtmlEntity(entity, normalizedValue);
       }
 
       return HTML_TEXT_ENTITY_VALUES[normalizedValue] ?? entity;
@@ -145,7 +161,7 @@ function sanitizeMetadataText(input: string | null): string | null {
   const plainText = decodeBasicHtmlEntities(input)
     .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, ' ')
     .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, ' ')
-    .replace(/<[^>]*>/g, ' ')
+    .replace(/<\/?[a-z][^>]*>/gi, ' ')
     .replace(/\s+/g, ' ')
     .replace(/\s+([,.:;!?])/g, '$1')
     .trim();
@@ -191,7 +207,11 @@ function getMetaContentByKey(html: string, keys: readonly string[]): string | nu
     const metadataKey = getMetadataKey(attributes);
 
     if (metadataKey !== null && normalizedKeys.has(metadataKey)) {
-      return getNonEmptyString(attributes.content ?? null);
+      const content = getNonEmptyString(attributes.content ?? null);
+
+      if (content !== null) {
+        return content;
+      }
     }
   }
 
@@ -202,6 +222,21 @@ function getTitleTagContent(html: string): string | null {
   const match = /<title\b[^>]*>([\s\S]*?)<\/title>/i.exec(html);
 
   return match ? getNonEmptyString(match[1] ?? null) : null;
+}
+
+function getClearPublishedAt(html: string): string | null {
+  const publishedAt = getMetaContentByKey(html, PUBLICATION_DATE_META_KEYS);
+
+  if (
+    publishedAt === null ||
+    !CLEAR_PUBLICATION_DATE_PATTERN.test(publishedAt)
+  ) {
+    return null;
+  }
+
+  const parsedDate = new Date(publishedAt);
+
+  return Number.isNaN(parsedDate.getTime()) ? null : publishedAt;
 }
 
 function buildSkippedEntryReport(
@@ -243,7 +278,7 @@ export function parsePublicMetadataPage(
   const summary = sanitizeMetadataText(
     getMetaContentByKey(html, ['og:description', 'description']),
   );
-  const publishedAt = getMetaContentByKey(html, PUBLICATION_DATE_META_KEYS);
+  const publishedAt = getClearPublishedAt(html);
 
   return {
     title,

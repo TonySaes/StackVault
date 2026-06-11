@@ -126,6 +126,72 @@ describe('parsePublicMetadataPage', () => {
     assert.strictEqual(JSON.stringify(parsedPage).includes('<script>'), false);
   });
 
+  it('keeps encoded comparisons as text while cleaning real HTML tags', () => {
+    const parsedPage = parsePublicMetadataPage(
+      `<!doctype html>
+<html>
+  <head>
+    <meta property="og:title" content="Version &lt;strong&gt;stable&lt;/strong&gt;" />
+    <meta name="description" content="Node.js 20 &lt; Node.js 22 &gt; Node.js 18." />
+  </head>
+</html>`,
+      'https://nodejs.org/en/blog',
+    );
+
+    assert.strictEqual(parsedPage.title, 'Version stable');
+    assert.strictEqual(parsedPage.summary, 'Node.js 20 < Node.js 22 > Node.js 18.');
+  });
+
+  it('ignores empty matching metadata tags and keeps searching for content', () => {
+    const parsedPage = parsePublicMetadataPage(
+      `<!doctype html>
+<html>
+  <head>
+    <meta property="og:description" content=" " />
+    <meta name="description" content="Description publique exploitable." />
+    <title>Fallback metadata search</title>
+  </head>
+</html>`,
+      'https://example.com/source',
+    );
+
+    assert.strictEqual(parsedPage.summary, 'Description publique exploitable.');
+  });
+
+  it('keeps invalid numeric HTML entities instead of failing the page parsing', () => {
+    const parsedPage = parsePublicMetadataPage(
+      `<!doctype html>
+<html>
+  <head>
+    <meta property="og:title" content="Invalid entity &#999999999999; kept" />
+  </head>
+</html>`,
+      'https://example.com/source',
+    );
+
+    assert.deepEqual(parsedPage, {
+      title: 'Invalid entity &#999999999999; kept',
+      sourceUrl: 'https://example.com/source',
+      publishedAt: null,
+      summary: null,
+    });
+  });
+
+  it('returns null publication dates when metadata dates are not clear ISO dates', () => {
+    const parsedPage = parsePublicMetadataPage(
+      `<!doctype html>
+<html>
+  <head>
+    <meta property="og:title" content="Ambiguous date metadata" />
+    <meta name="date" content="05/14/2025" />
+  </head>
+</html>`,
+      'https://example.com/source',
+    );
+
+    assert.strictEqual(parsedPage.publishedAt, null);
+  });
+
   it('returns null metadata values when the page has no supported tags', () => {
     const parsedPage = parsePublicMetadataPage(
       '<html><head></head><body>No supported metadata.</body></html>',
