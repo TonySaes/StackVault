@@ -8,19 +8,36 @@ datasource db {
 }
 
 model Source {
-  id              String     @id @default(uuid()) @db.Uuid
-  name            String     @db.VarChar(160)
-  url             String     @unique
+  id              String           @id @default(uuid()) @db.Uuid
+  name            String           @db.VarChar(160)
+  url             String           @unique
   type            String
-  status          String     @default("active")
-  lastIngestionAt DateTime?  @map("last_ingestion_at") @db.Timestamptz(6)
-  lastCheckedAt   DateTime?  @map("last_checked_at") @db.Timestamptz(6)
-  createdAt       DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt       DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  status          String           @default("active")
+  lastIngestionAt DateTime?        @map("last_ingestion_at") @db.Timestamptz(6)
+  lastCheckedAt   DateTime?        @map("last_checked_at") @db.Timestamptz(6)
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
   resources       Resource[]
+  ingestionErrors IngestionError[]
 
   @@index([status], map: "idx_sources_status")
   @@map("sources")
+}
+
+model IngestionError {
+  id           String   @id @default(uuid()) @db.Uuid
+  sourceId     String   @map("source_id") @db.Uuid
+  occurredAt   DateTime @default(now()) @map("occurred_at") @db.Timestamptz(6)
+  errorType    String   @map("error_type") @db.VarChar(120)
+  message      String   @db.VarChar(500)
+  sourceStatus String   @map("source_status") @db.VarChar(80)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  source       Source   @relation(fields: [sourceId], references: [id])
+
+  @@index([sourceId], map: "idx_ingestion_errors_source_id")
+  @@index([occurredAt], map: "idx_ingestion_errors_occurred_at")
+  @@index([errorType], map: "idx_ingestion_errors_error_type")
+  @@map("ingestion_errors")
 }
 
 model Category {
