@@ -44,6 +44,11 @@ export interface IngestionErrorLogPersistencePort {
   ): Promise<void>;
 }
 
+export interface RecordIngestionErrorDependencies {
+  persistence: IngestionErrorLogPersistencePort;
+  historyLimit?: number;
+}
+
 const FALLBACK_INGESTION_ERROR_TYPE = 'ingestion.unknown';
 const FALLBACK_INGESTION_ERROR_MESSAGE =
   'Ingestion failed with a non-sensitive internal error code.';
@@ -129,4 +134,35 @@ export function buildIngestionErrorLogEntry(
     message: sanitizeIngestionErrorMessage(input.message),
     sourceStatus: input.source.status,
   };
+}
+
+function resolveHistoryLimit(historyLimit: number | undefined): number {
+  if (
+    historyLimit === undefined ||
+    !Number.isInteger(historyLimit) ||
+    historyLimit < 1
+  ) {
+    return DEFAULT_INGESTION_ERROR_HISTORY_LIMIT;
+  }
+
+  return historyLimit;
+}
+
+// Error log orchestration
+// Recording and pruning stay together so every write applies the same retention
+// rule. The database implementation remains behind the port, which keeps this
+// function easy to test without a real Prisma client.
+export async function recordIngestionError(
+  input: IngestionErrorLogInput,
+  dependencies: RecordIngestionErrorDependencies,
+): Promise<IngestionErrorLogPersistenceResult> {
+  const entry = buildIngestionErrorLogEntry(input);
+  const result = await dependencies.persistence.createIngestionError(entry);
+
+  await dependencies.persistence.pruneIngestionErrorsForSource(
+    entry.sourceId,
+    resolveHistoryLimit(dependencies.historyLimit),
+  );
+
+  return result;
 }

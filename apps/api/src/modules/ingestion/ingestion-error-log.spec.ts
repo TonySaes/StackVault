@@ -1,8 +1,11 @@
-import { assert, describe, it } from 'vitest';
+import { assert, describe, it, vi } from 'vitest';
 
 import {
   buildIngestionErrorLogEntry,
+  DEFAULT_INGESTION_ERROR_HISTORY_LIMIT,
+  type IngestionErrorLogPersistencePort,
   MAX_INGESTION_ERROR_MESSAGE_LENGTH,
+  recordIngestionError,
   sanitizeIngestionErrorMessage,
   sanitizeIngestionErrorType,
 } from './ingestion-error-log.js';
@@ -115,5 +118,75 @@ describe('sanitizeIngestionErrorMessage', () => {
 
     assert.strictEqual(message.length, MAX_INGESTION_ERROR_MESSAGE_LENGTH);
     assert.strictEqual(message.endsWith('...'), true);
+  });
+});
+
+describe('recordIngestionError', () => {
+  it('writes the sanitized error then prunes the source history', async () => {
+    const persistence: IngestionErrorLogPersistencePort = {
+      createIngestionError: vi.fn().mockResolvedValue({
+        ingestionErrorId: '7eb45381-6b55-4692-8d54-f5893d71441d',
+      }),
+      pruneIngestionErrorsForSource: vi.fn().mockResolvedValue(undefined),
+    };
+    const result = await recordIngestionError(
+      {
+        source: {
+          id: 'dc0db0b4-5670-4285-8f4d-7ef4cf68af89',
+          status: 'active',
+        },
+        errorType: 'page.fetchFailed',
+        message: '<html>Full provider body</html>',
+        occurredAt: new Date('2026-06-11T10:15:00.000Z'),
+      },
+      {
+        persistence,
+      },
+    );
+
+    assert.deepEqual(result, {
+      ingestionErrorId: '7eb45381-6b55-4692-8d54-f5893d71441d',
+    });
+    assert.deepEqual(vi.mocked(persistence.createIngestionError).mock.calls[0]?.[0], {
+      sourceId: 'dc0db0b4-5670-4285-8f4d-7ef4cf68af89',
+      occurredAt: new Date('2026-06-11T10:15:00.000Z'),
+      errorType: 'page.fetchFailed',
+      message: nonSensitiveFallbackMessage,
+      sourceStatus: 'active',
+    });
+    assert.deepEqual(vi.mocked(persistence.pruneIngestionErrorsForSource).mock.calls, [
+      [
+        'dc0db0b4-5670-4285-8f4d-7ef4cf68af89',
+        DEFAULT_INGESTION_ERROR_HISTORY_LIMIT,
+      ],
+    ]);
+  });
+
+  it('uses a custom positive history limit when provided', async () => {
+    const persistence: IngestionErrorLogPersistencePort = {
+      createIngestionError: vi.fn().mockResolvedValue({
+        ingestionErrorId: '7eb45381-6b55-4692-8d54-f5893d71441d',
+      }),
+      pruneIngestionErrorsForSource: vi.fn().mockResolvedValue(undefined),
+    };
+
+    await recordIngestionError(
+      {
+        source: {
+          id: 'dc0db0b4-5670-4285-8f4d-7ef4cf68af89',
+          status: 'active',
+        },
+        errorType: 'entry.titleMissing',
+        message: 'Title is missing.',
+      },
+      {
+        persistence,
+        historyLimit: 5,
+      },
+    );
+
+    assert.deepEqual(vi.mocked(persistence.pruneIngestionErrorsForSource).mock.calls, [
+      ['dc0db0b4-5670-4285-8f4d-7ef4cf68af89', 5],
+    ]);
   });
 });
