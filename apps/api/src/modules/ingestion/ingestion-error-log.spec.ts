@@ -8,6 +8,7 @@ import {
   type IngestionErrorLogWriter,
   MAX_INGESTION_ERROR_MESSAGE_LENGTH,
   recordIngestionError,
+  recordIngestionReportErrors,
   sanitizeIngestionErrorMessage,
   sanitizeIngestionErrorType,
 } from './ingestion-error-log.js';
@@ -190,6 +191,118 @@ describe('recordIngestionError', () => {
     assert.deepEqual(vi.mocked(persistence.pruneIngestionErrorsForSource).mock.calls, [
       ['dc0db0b4-5670-4285-8f4d-7ef4cf68af89', 5],
     ]);
+  });
+});
+
+describe('recordIngestionReportErrors', () => {
+  it('records adapter and ingestion errors from a run report', async () => {
+    const persistence: IngestionErrorLogPersistencePort = {
+      createIngestionError: vi
+        .fn()
+        .mockResolvedValue({ ingestionErrorId: 'created-error' }),
+      pruneIngestionErrorsForSource: vi.fn().mockResolvedValue(undefined),
+    };
+    const recordedCount = await recordIngestionReportErrors(
+      {
+        source: {
+          id: 'dc0db0b4-5670-4285-8f4d-7ef4cf68af89',
+          status: 'active',
+        },
+        report: {
+          adapter: {
+            entries: [
+              {
+                errors: [{ code: 'page.fetchFailed', field: 'url' }],
+              },
+            ],
+          },
+          ingestion: {
+            items: [
+              {
+                errors: [{ code: 'persistence.failed', field: 'persistence' }],
+              },
+            ],
+          },
+        },
+        adapterLabel: 'Public metadata adapter',
+        ingestionLabel: 'Public metadata ingestion',
+      },
+      {
+        persistence,
+      },
+    );
+
+    assert.strictEqual(recordedCount, 2);
+    assert.deepEqual(
+      vi.mocked(persistence.createIngestionError).mock.calls.map(
+        ([entry]) => ({
+          errorType: entry.errorType,
+          message: entry.message,
+        }),
+      ),
+      [
+        {
+          errorType: 'page.fetchFailed',
+          message: 'Public metadata adapter error page.fetchFailed on url.',
+        },
+        {
+          errorType: 'persistence.failed',
+          message:
+            'Public metadata ingestion error persistence.failed on persistence.',
+        },
+      ],
+    );
+  });
+
+  it('does not record warnings-only reports', async () => {
+    const persistence: IngestionErrorLogPersistencePort = {
+      createIngestionError: vi
+        .fn()
+        .mockResolvedValue({ ingestionErrorId: 'created-error' }),
+      pruneIngestionErrorsForSource: vi.fn().mockResolvedValue(undefined),
+    };
+    const warningsOnlyReport = {
+      adapter: {
+        entries: [
+          {
+            warnings: [{ code: 'metadata.summaryMissing', field: 'summary' }],
+            errors: [],
+          },
+        ],
+      },
+      ingestion: {
+        items: [
+          {
+            warnings: [{ code: 'entry.technologyMissing', field: 'technology' }],
+            errors: [],
+          },
+        ],
+      },
+    };
+    const recordedCount = await recordIngestionReportErrors(
+      {
+        source: {
+          id: 'dc0db0b4-5670-4285-8f4d-7ef4cf68af89',
+          status: 'active',
+        },
+        report: warningsOnlyReport,
+        adapterLabel: 'Public metadata adapter',
+        ingestionLabel: 'Public metadata ingestion',
+      },
+      {
+        persistence,
+      },
+    );
+
+    assert.strictEqual(recordedCount, 0);
+    assert.strictEqual(
+      vi.mocked(persistence.createIngestionError).mock.calls.length,
+      0,
+    );
+    assert.strictEqual(
+      vi.mocked(persistence.pruneIngestionErrorsForSource).mock.calls.length,
+      0,
+    );
   });
 });
 

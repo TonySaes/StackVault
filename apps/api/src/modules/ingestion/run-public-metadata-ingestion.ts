@@ -5,9 +5,7 @@ import { config } from 'dotenv';
 
 import {
   createIngestionErrorLogPersistence,
-  recordIngestionError,
-  type IngestionErrorLogPersistencePort,
-  type IngestionErrorLogSource,
+  recordIngestionReportErrors,
   type IngestionErrorLogWriter,
 } from './ingestion-error-log.js';
 import {
@@ -170,53 +168,6 @@ function hasBlockingIssues(
   );
 }
 
-async function recordPublicMetadataIngestionErrors(
-  source: IngestionErrorLogSource,
-  result: Awaited<ReturnType<typeof runPublicMetadataIngestion>>,
-  errorLogPersistence: IngestionErrorLogPersistencePort,
-) {
-  let recordedCount = 0;
-
-  // Adapter errors happen while fetching or mapping page metadata. Warnings are
-  // deliberately ignored here so the future admin log reports blockers, not
-  // acceptable metadata gaps like a missing optional publication date.
-  for (const entry of result.adapter.entries) {
-    for (const error of entry.errors) {
-      await recordIngestionError(
-        {
-          source,
-          errorType: error.code,
-          message: `Public metadata adapter error ${error.code} on ${error.field}.`,
-        },
-        {
-          persistence: errorLogPersistence,
-        },
-      );
-      recordedCount += 1;
-    }
-  }
-
-  // Ingestion errors happen after the page became an internal item candidate:
-  // validation, normalization, canonical deduplication or persistence.
-  for (const item of result.ingestion.items) {
-    for (const error of item.errors) {
-      await recordIngestionError(
-        {
-          source,
-          errorType: error.code,
-          message: `Public metadata ingestion error ${error.code} on ${error.field}.`,
-        },
-        {
-          persistence: errorLogPersistence,
-        },
-      );
-      recordedCount += 1;
-    }
-  }
-
-  return recordedCount;
-}
-
 async function findSourceByUrl(rawSourceUrl: string) {
   return prisma.source.findUnique({
     where: {
@@ -251,10 +202,16 @@ async function main() {
     normalizationContext,
     persistence,
   });
-  const recordedErrorCount = await recordPublicMetadataIngestionErrors(
-    source,
-    result,
-    errorLogPersistence,
+  const recordedErrorCount = await recordIngestionReportErrors(
+    {
+      source,
+      report: result,
+      adapterLabel: 'Public metadata adapter',
+      ingestionLabel: 'Public metadata ingestion',
+    },
+    {
+      persistence: errorLogPersistence,
+    },
   );
 
   console.log(

@@ -5,9 +5,7 @@ import { config } from 'dotenv';
 
 import {
   createIngestionErrorLogPersistence,
-  recordIngestionError,
-  type IngestionErrorLogPersistencePort,
-  type IngestionErrorLogSource,
+  recordIngestionReportErrors,
   type IngestionErrorLogWriter,
 } from './ingestion-error-log.js';
 import {
@@ -159,54 +157,6 @@ function hasBlockingIssues(
   );
 }
 
-async function recordRssAtomIngestionErrors(
-  source: IngestionErrorLogSource,
-  result: Awaited<ReturnType<typeof runRssAtomIngestion>>,
-  errorLogPersistence: IngestionErrorLogPersistencePort,
-) {
-  let recordedCount = 0;
-
-  // Adapter errors describe source/feed failures before normalization.
-  // Warnings stay out of the persistent error log to keep future admin screens
-  // focused on blockers rather than low-priority quality signals.
-  for (const entry of result.adapter.entries) {
-    for (const error of entry.errors) {
-      await recordIngestionError(
-        {
-          source,
-          errorType: error.code,
-          message: `RSS/Atom adapter error ${error.code} on ${error.field}.`,
-        },
-        {
-          persistence: errorLogPersistence,
-        },
-      );
-      recordedCount += 1;
-    }
-  }
-
-  // Ingestion errors happen after adaptation: validation, normalization,
-  // canonical deduplication or persistence. They use the same source snapshot
-  // so the future admin log can group failures by allowlisted source.
-  for (const item of result.ingestion.items) {
-    for (const error of item.errors) {
-      await recordIngestionError(
-        {
-          source,
-          errorType: error.code,
-          message: `RSS/Atom ingestion error ${error.code} on ${error.field}.`,
-        },
-        {
-          persistence: errorLogPersistence,
-        },
-      );
-      recordedCount += 1;
-    }
-  }
-
-  return recordedCount;
-}
-
 async function findSourceByUrl(rawSourceUrl: string) {
   return prisma.source.findUnique({
     where: {
@@ -241,10 +191,16 @@ async function main() {
     normalizationContext,
     persistence,
   });
-  const recordedErrorCount = await recordRssAtomIngestionErrors(
-    source,
-    result,
-    errorLogPersistence,
+  const recordedErrorCount = await recordIngestionReportErrors(
+    {
+      source,
+      report: result,
+      adapterLabel: 'RSS/Atom adapter',
+      ingestionLabel: 'RSS/Atom ingestion',
+    },
+    {
+      persistence: errorLogPersistence,
+    },
   );
 
   console.log(

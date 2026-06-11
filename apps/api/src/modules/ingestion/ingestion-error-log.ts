@@ -96,6 +96,31 @@ export interface IngestionErrorLogWriter {
   };
 }
 
+export interface IngestionErrorLogIssue {
+  code: string;
+  field: string;
+}
+
+export interface IngestionErrorLogReportEntry {
+  errors: IngestionErrorLogIssue[];
+}
+
+export interface IngestionErrorLogReport {
+  adapter: {
+    entries: IngestionErrorLogReportEntry[];
+  };
+  ingestion: {
+    items: IngestionErrorLogReportEntry[];
+  };
+}
+
+export interface RecordIngestionReportErrorsInput {
+  source: IngestionErrorLogSource;
+  report: IngestionErrorLogReport;
+  adapterLabel: string;
+  ingestionLabel: string;
+}
+
 const FALLBACK_INGESTION_ERROR_TYPE = 'ingestion.unknown';
 const FALLBACK_INGESTION_ERROR_MESSAGE =
   'Ingestion failed with a non-sensitive internal error code.';
@@ -212,6 +237,47 @@ export async function recordIngestionError(
   );
 
   return result;
+}
+
+// Report-level orchestration
+// Runners receive adapter and ingestion reports with the same warnings/errors
+// pattern. This helper records only errors so warnings remain visible in CLI
+// output without polluting the future admin error log.
+export async function recordIngestionReportErrors(
+  input: RecordIngestionReportErrorsInput,
+  dependencies: RecordIngestionErrorDependencies,
+) {
+  let recordedCount = 0;
+
+  for (const entry of input.report.adapter.entries) {
+    for (const error of entry.errors) {
+      await recordIngestionError(
+        {
+          source: input.source,
+          errorType: error.code,
+          message: `${input.adapterLabel} error ${error.code} on ${error.field}.`,
+        },
+        dependencies,
+      );
+      recordedCount += 1;
+    }
+  }
+
+  for (const item of input.report.ingestion.items) {
+    for (const error of item.errors) {
+      await recordIngestionError(
+        {
+          source: input.source,
+          errorType: error.code,
+          message: `${input.ingestionLabel} error ${error.code} on ${error.field}.`,
+        },
+        dependencies,
+      );
+      recordedCount += 1;
+    }
+  }
+
+  return recordedCount;
 }
 
 // Prisma persistence adapter
