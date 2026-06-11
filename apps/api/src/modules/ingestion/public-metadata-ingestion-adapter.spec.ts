@@ -1,6 +1,9 @@
 import { assert, describe, it, vi } from 'vitest';
 
-import type { ManualDemoIngestionPersistencePort } from './manual-demo-ingestion.js';
+import type {
+  ManualDemoIngestionPersistencePort,
+  ManualDemoIngestionPersistenceResult,
+} from './manual-demo-ingestion.js';
 import type { IngestionNormalizationContext } from './normalize-ingestion-item.js';
 import {
   mapPublicMetadataPageToIngestionItem,
@@ -54,7 +57,7 @@ function createPersistencePort() {
         _draft: Parameters<
           ManualDemoIngestionPersistencePort['upsertResourceDraft']
         >[0],
-      ) => ({
+      ): Promise<ManualDemoIngestionPersistenceResult> => ({
         resourceId: 'resource-node-blog',
         operation: 'created' as const,
       }),
@@ -384,5 +387,59 @@ describe('runPublicMetadataIngestion', () => {
         },
       ],
     });
+  });
+
+  it('keeps the same canonical URL across two runs for the same public metadata source', async () => {
+    const fetchPage = vi.fn(async () => `<!doctype html>
+<html>
+  <head>
+    <meta property="og:title" content="Node.js public metadata" />
+    <meta property="og:description" content="Signal public issu des metadonnees." />
+  </head>
+</html>`);
+    const persistence = {
+      upsertResourceDraft: vi
+        .fn(
+          async (
+            _draft: Parameters<
+              ManualDemoIngestionPersistencePort['upsertResourceDraft']
+            >[0],
+          ): Promise<ManualDemoIngestionPersistenceResult> => ({
+            resourceId: 'resource-node-blog',
+            operation: 'created' as const,
+          }),
+        )
+        .mockResolvedValueOnce({
+          resourceId: 'resource-node-blog',
+          operation: 'created' as const,
+        })
+        .mockResolvedValueOnce({
+          resourceId: 'resource-node-blog',
+          operation: 'updated' as const,
+        }),
+    } satisfies ManualDemoIngestionPersistencePort;
+
+    const firstRun = await runPublicMetadataIngestion(publicMetadataSource, {
+      fetchPage,
+      normalizationContext,
+      persistence,
+    });
+    const secondRun = await runPublicMetadataIngestion(publicMetadataSource, {
+      fetchPage,
+      normalizationContext,
+      persistence,
+    });
+
+    assert.strictEqual(fetchPage.mock.calls.length, 2);
+    assert.deepEqual(
+      persistence.upsertResourceDraft.mock.calls.map(
+        ([draft]) => draft.canonicalUrl,
+      ),
+      ['https://nodejs.org/en/blog', 'https://nodejs.org/en/blog'],
+    );
+    assert.strictEqual(firstRun.ingestion.createdCount, 1);
+    assert.strictEqual(firstRun.ingestion.updatedCount, 0);
+    assert.strictEqual(secondRun.ingestion.createdCount, 0);
+    assert.strictEqual(secondRun.ingestion.updatedCount, 1);
   });
 });
