@@ -2,9 +2,11 @@ import { assert, describe, it, vi } from 'vitest';
 
 import {
   buildGroupedSourceIngestionResult,
+  buildGroupedSourceResultFromReport,
   createGroupedSourceFailureRecorder,
   GROUPED_SOURCE_INGESTION_UNEXPECTED_ERROR,
   runGroupedSourceIngestion,
+  type GroupedSourceIngestionReport,
   type GroupedSourceIngestionSource,
   type GroupedSourceIngestionSourceResult,
 } from './grouped-source-ingestion.js';
@@ -63,6 +65,71 @@ describe('buildGroupedSourceIngestionResult', () => {
       succeededSourceCount: 0,
       failedSourceCount: 0,
       sources: [],
+    });
+  });
+});
+
+describe('buildGroupedSourceResultFromReport', () => {
+  it('maps a successful ingestion report to a successful source result', () => {
+    const source = sourceResults[0]?.source;
+    const report: GroupedSourceIngestionReport = {
+      adapter: {
+        entries: [{ errors: [] }],
+      },
+      ingestion: {
+        createdCount: 1,
+        updatedCount: 2,
+        skippedCount: 0,
+        items: [{ errors: [] }],
+      },
+    };
+
+    assert.ok(source);
+    assert.deepEqual(buildGroupedSourceResultFromReport(source, report, 0), {
+      source,
+      status: 'succeeded',
+      createdCount: 1,
+      updatedCount: 2,
+      skippedCount: 0,
+      recordedErrorCount: 0,
+      errors: [],
+    });
+  });
+
+  it('maps adapter and ingestion errors to a failed source result', () => {
+    const source = sourceResults[1]?.source;
+    const report: GroupedSourceIngestionReport = {
+      adapter: {
+        entries: [
+          {
+            errors: [{ code: 'feed.fetchFailed', field: 'fetchFeed' }],
+          },
+        ],
+      },
+      ingestion: {
+        createdCount: 0,
+        updatedCount: 0,
+        skippedCount: 1,
+        items: [
+          {
+            errors: [{ code: 'persistence.failed', field: 'persistence' }],
+          },
+        ],
+      },
+    };
+
+    assert.ok(source);
+    assert.deepEqual(buildGroupedSourceResultFromReport(source, report, 2), {
+      source,
+      status: 'failed',
+      createdCount: 0,
+      updatedCount: 0,
+      skippedCount: 1,
+      recordedErrorCount: 2,
+      errors: [
+        { code: 'feed.fetchFailed', field: 'fetchFeed' },
+        { code: 'persistence.failed', field: 'persistence' },
+      ],
     });
   });
 });

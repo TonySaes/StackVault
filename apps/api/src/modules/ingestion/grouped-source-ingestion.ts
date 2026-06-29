@@ -54,6 +54,22 @@ export interface GroupedSourceIngestionResult {
   sources: GroupedSourceIngestionSourceResult[];
 }
 
+export interface GroupedSourceIngestionReportEntry {
+  errors: GroupedSourceIngestionIssue[];
+}
+
+export interface GroupedSourceIngestionReport {
+  adapter: {
+    entries: GroupedSourceIngestionReportEntry[];
+  };
+  ingestion: {
+    createdCount: number;
+    updatedCount: number;
+    skippedCount: number;
+    items: GroupedSourceIngestionReportEntry[];
+  };
+}
+
 export type GroupedSourceFailureRecorder = (
   source: GroupedSourceIngestionSource,
   issue: GroupedSourceIngestionIssue,
@@ -83,6 +99,37 @@ export function buildGroupedSourceIngestionResult(
     failedSourceCount: sources.filter((source) => source.status === 'failed')
       .length,
     sources,
+  };
+}
+
+function collectReportErrors(
+  report: GroupedSourceIngestionReport,
+): GroupedSourceIngestionIssue[] {
+  return [
+    ...report.adapter.entries.flatMap((entry) => entry.errors),
+    ...report.ingestion.items.flatMap((item) => item.errors),
+  ];
+}
+
+// Report-to-source result mapping
+// RSS/Atom and public metadata runs already expose the same high-level shape:
+// adapter issues plus ingestion item issues. This mapper keeps grouped
+// orchestration independent from each concrete adapter.
+export function buildGroupedSourceResultFromReport(
+  source: GroupedSourceIngestionSource,
+  report: GroupedSourceIngestionReport,
+  recordedErrorCount: number,
+): GroupedSourceIngestionSourceResult {
+  const errors = collectReportErrors(report);
+
+  return {
+    source,
+    status: errors.length > 0 ? 'failed' : 'succeeded',
+    createdCount: report.ingestion.createdCount,
+    updatedCount: report.ingestion.updatedCount,
+    skippedCount: report.ingestion.skippedCount,
+    recordedErrorCount,
+    errors,
   };
 }
 
