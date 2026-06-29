@@ -55,6 +55,7 @@ export interface GroupedSourceIngestionResult {
 }
 
 export interface GroupedSourceIngestionReportEntry {
+  warnings?: GroupedSourceIngestionIssue[];
   errors: GroupedSourceIngestionIssue[];
 }
 
@@ -114,7 +115,8 @@ function collectReportErrors(
 // Report-to-source result mapping
 // RSS/Atom and public metadata runs already expose the same high-level shape:
 // adapter issues plus ingestion item issues. This mapper keeps grouped
-// orchestration independent from each concrete adapter.
+// orchestration independent from each concrete adapter. Warnings stay out of
+// the failure decision; only explicit errors make the source failed.
 export function buildGroupedSourceResultFromReport(
   source: GroupedSourceIngestionSource,
   report: GroupedSourceIngestionReport,

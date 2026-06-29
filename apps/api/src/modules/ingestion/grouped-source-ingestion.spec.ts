@@ -132,6 +132,44 @@ describe('buildGroupedSourceResultFromReport', () => {
       ],
     });
   });
+
+  it('keeps warning-only reports successful even when items are skipped', () => {
+    const source = sourceResults[0]?.source;
+    const report: GroupedSourceIngestionReport = {
+      adapter: {
+        entries: [
+          {
+            warnings: [{ code: 'metadata.summaryMissing', field: 'summary' }],
+            errors: [],
+          },
+        ],
+      },
+      ingestion: {
+        createdCount: 0,
+        updatedCount: 1,
+        skippedCount: 1,
+        items: [
+          {
+            warnings: [
+              { code: 'canonicalUrl.duplicate', field: 'canonicalUrl' },
+            ],
+            errors: [],
+          },
+        ],
+      },
+    };
+
+    assert.ok(source);
+    assert.deepEqual(buildGroupedSourceResultFromReport(source, report, 0), {
+      source,
+      status: 'succeeded',
+      createdCount: 0,
+      updatedCount: 1,
+      skippedCount: 1,
+      recordedErrorCount: 0,
+      errors: [],
+    });
+  });
 });
 
 describe('runGroupedSourceIngestion', () => {
