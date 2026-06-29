@@ -53,6 +53,10 @@ export interface GroupedSourceIngestionDependencies {
   runSourceIngestion(
     source: GroupedSourceIngestionSource,
   ): Promise<GroupedSourceIngestionSourceResult>;
+  recordSourceFailure(
+    source: GroupedSourceIngestionSource,
+    issue: GroupedSourceIngestionIssue,
+  ): Promise<number>;
 }
 
 // Batch summary mapping
@@ -75,23 +79,42 @@ export function buildGroupedSourceIngestionResult(
   };
 }
 
+function buildUnexpectedFailureIssue(): GroupedSourceIngestionIssue {
+  return {
+    code: GROUPED_SOURCE_INGESTION_UNEXPECTED_ERROR,
+    field: 'source',
+  };
+}
+
 function buildUnexpectedFailureSourceResult(
   source: GroupedSourceIngestionSource,
+  recordedErrorCount: number,
 ): GroupedSourceIngestionSourceResult {
+  const issue = buildUnexpectedFailureIssue();
+
   return {
     source,
     status: 'failed',
     createdCount: 0,
     updatedCount: 0,
     skippedCount: 0,
-    recordedErrorCount: 0,
-    errors: [
-      {
-        code: GROUPED_SOURCE_INGESTION_UNEXPECTED_ERROR,
-        field: 'source',
-      },
-    ],
+    recordedErrorCount,
+    errors: [issue],
   };
+}
+
+async function recordUnexpectedFailure(
+  source: GroupedSourceIngestionSource,
+  dependencies: GroupedSourceIngestionDependencies,
+): Promise<number> {
+  try {
+    return await dependencies.recordSourceFailure(
+      source,
+      buildUnexpectedFailureIssue(),
+    );
+  } catch {
+    return 0;
+  }
 }
 
 // Sequential orchestration
@@ -108,7 +131,14 @@ export async function runGroupedSourceIngestion(
     try {
       sourceResults.push(await dependencies.runSourceIngestion(source));
     } catch {
-      sourceResults.push(buildUnexpectedFailureSourceResult(source));
+      const recordedErrorCount = await recordUnexpectedFailure(
+        source,
+        dependencies,
+      );
+
+      sourceResults.push(
+        buildUnexpectedFailureSourceResult(source, recordedErrorCount),
+      );
     }
   }
 
