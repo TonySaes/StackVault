@@ -2,6 +2,7 @@ import { assert, describe, it, vi } from 'vitest';
 
 import {
   buildGroupedSourceIngestionResult,
+  GROUPED_SOURCE_INGESTION_UNEXPECTED_ERROR,
   runGroupedSourceIngestion,
   type GroupedSourceIngestionSource,
   type GroupedSourceIngestionSourceResult,
@@ -120,6 +121,77 @@ describe('runGroupedSourceIngestion', () => {
           skippedCount: 0,
           recordedErrorCount: 0,
           errors: [],
+        },
+        {
+          source: nodeSource,
+          status: 'succeeded',
+          createdCount: 1,
+          updatedCount: 0,
+          skippedCount: 0,
+          recordedErrorCount: 0,
+          errors: [],
+        },
+      ],
+    });
+  });
+
+  it('isolates a thrown source failure and continues with the next source', async () => {
+    const brokenSource: GroupedSourceIngestionSource = {
+      id: 'f55f6f25-7ad0-4c6c-a908-ac8616f70862',
+      name: 'Broken Source',
+      url: 'https://example.invalid/feed',
+      type: 'rss_atom',
+      status: 'active',
+    };
+    const nodeSource: GroupedSourceIngestionSource = {
+      id: 'a6e01d7d-bba3-45d6-972b-7e69729c78c7',
+      name: 'Node.js Blog',
+      url: 'https://nodejs.org/en/blog',
+      type: 'public_metadata',
+      status: 'active',
+    };
+    const runSourceIngestion = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('raw provider failure'))
+      .mockResolvedValueOnce({
+        source: nodeSource,
+        status: 'succeeded',
+        createdCount: 1,
+        updatedCount: 0,
+        skippedCount: 0,
+        recordedErrorCount: 0,
+        errors: [],
+      } satisfies GroupedSourceIngestionSourceResult);
+
+    const result = await runGroupedSourceIngestion(
+      [brokenSource, nodeSource],
+      {
+        runSourceIngestion,
+      },
+    );
+
+    assert.deepEqual(
+      vi.mocked(runSourceIngestion).mock.calls.map(([source]) => source.name),
+      ['Broken Source', 'Node.js Blog'],
+    );
+    assert.deepEqual(result, {
+      processedSourceCount: 2,
+      succeededSourceCount: 1,
+      failedSourceCount: 1,
+      sources: [
+        {
+          source: brokenSource,
+          status: 'failed',
+          createdCount: 0,
+          updatedCount: 0,
+          skippedCount: 0,
+          recordedErrorCount: 0,
+          errors: [
+            {
+              code: GROUPED_SOURCE_INGESTION_UNEXPECTED_ERROR,
+              field: 'source',
+            },
+          ],
         },
         {
           source: nodeSource,

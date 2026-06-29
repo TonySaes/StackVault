@@ -75,10 +75,29 @@ export function buildGroupedSourceIngestionResult(
   };
 }
 
+function buildUnexpectedFailureSourceResult(
+  source: GroupedSourceIngestionSource,
+): GroupedSourceIngestionSourceResult {
+  return {
+    source,
+    status: 'failed',
+    createdCount: 0,
+    updatedCount: 0,
+    skippedCount: 0,
+    recordedErrorCount: 0,
+    errors: [
+      {
+        code: GROUPED_SOURCE_INGESTION_UNEXPECTED_ERROR,
+        field: 'source',
+      },
+    ],
+  };
+}
+
 // Sequential orchestration
-// This first version models the happy path only: each source is awaited before
-// the next one starts. The per-source isolation `try/catch` will be added in the
-// next micro-increment so the diff stays focused and easy to review.
+// Each source owns its local failure boundary. This is the equivalent of
+// putting the `try/catch` inside the loop in a Node.js service so the next
+// source can still run after one provider fails.
 export async function runGroupedSourceIngestion(
   sources: readonly GroupedSourceIngestionSource[],
   dependencies: GroupedSourceIngestionDependencies,
@@ -86,7 +105,11 @@ export async function runGroupedSourceIngestion(
   const sourceResults: GroupedSourceIngestionSourceResult[] = [];
 
   for (const source of sources) {
-    sourceResults.push(await dependencies.runSourceIngestion(source));
+    try {
+      sourceResults.push(await dependencies.runSourceIngestion(source));
+    } catch {
+      sourceResults.push(buildUnexpectedFailureSourceResult(source));
+    }
   }
 
   return buildGroupedSourceIngestionResult(sourceResults);
