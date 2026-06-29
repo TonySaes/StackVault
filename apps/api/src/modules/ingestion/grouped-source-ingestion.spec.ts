@@ -2,11 +2,13 @@ import { assert, describe, it, vi } from 'vitest';
 
 import {
   buildGroupedSourceIngestionResult,
+  createGroupedSourceFailureRecorder,
   GROUPED_SOURCE_INGESTION_UNEXPECTED_ERROR,
   runGroupedSourceIngestion,
   type GroupedSourceIngestionSource,
   type GroupedSourceIngestionSourceResult,
 } from './grouped-source-ingestion.js';
+import { type IngestionErrorLogPersistencePort } from './ingestion-error-log.js';
 
 const sourceResults: GroupedSourceIngestionSourceResult[] = [
   {
@@ -279,5 +281,49 @@ describe('runGroupedSourceIngestion', () => {
     });
     assert.strictEqual(result.succeededSourceCount, 1);
     assert.strictEqual(result.failedSourceCount, 1);
+  });
+});
+
+describe('createGroupedSourceFailureRecorder', () => {
+  it('records an isolated grouped source failure through the ingestion error logger', async () => {
+    const persistence: IngestionErrorLogPersistencePort = {
+      createIngestionError: vi.fn().mockResolvedValue({
+        ingestionErrorId: '7eb45381-6b55-4692-8d54-f5893d71441d',
+      }),
+      pruneIngestionErrorsForSource: vi.fn().mockResolvedValue(undefined),
+    };
+    const recorder = createGroupedSourceFailureRecorder({ persistence });
+    const source: GroupedSourceIngestionSource = {
+      id: 'f55f6f25-7ad0-4c6c-a908-ac8616f70862',
+      name: 'Broken Source',
+      url: 'https://example.invalid/feed',
+      type: 'rss_atom',
+      status: 'active',
+    };
+
+    const recordedCount = await recorder(source, {
+      code: GROUPED_SOURCE_INGESTION_UNEXPECTED_ERROR,
+      field: 'source',
+    });
+    const createdEntry =
+      vi.mocked(persistence.createIngestionError).mock.calls[0]?.[0];
+
+    assert.strictEqual(recordedCount, 1);
+    assert.ok(createdEntry);
+    assert.strictEqual(createdEntry.sourceId, source.id);
+    assert.strictEqual(
+      createdEntry.errorType,
+      GROUPED_SOURCE_INGESTION_UNEXPECTED_ERROR,
+    );
+    assert.strictEqual(
+      createdEntry.message,
+      'Grouped source ingestion error source.ingestionFailed on source.',
+    );
+    assert.strictEqual(createdEntry.sourceStatus, 'active');
+    assert.ok(createdEntry.occurredAt instanceof Date);
+    assert.deepEqual(
+      vi.mocked(persistence.pruneIngestionErrorsForSource).mock.calls,
+      [[source.id, 20]],
+    );
   });
 });

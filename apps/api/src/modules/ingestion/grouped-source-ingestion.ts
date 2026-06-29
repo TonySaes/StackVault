@@ -1,3 +1,8 @@
+import {
+  recordIngestionError,
+  type RecordIngestionErrorDependencies,
+} from './ingestion-error-log.js';
+
 // Grouped source ingestion contract
 // This file describes the result shape before the orchestration logic exists.
 // The next increments will use these types to run sources one by one without
@@ -49,14 +54,16 @@ export interface GroupedSourceIngestionResult {
   sources: GroupedSourceIngestionSourceResult[];
 }
 
+export type GroupedSourceFailureRecorder = (
+  source: GroupedSourceIngestionSource,
+  issue: GroupedSourceIngestionIssue,
+) => Promise<number>;
+
 export interface GroupedSourceIngestionDependencies {
   runSourceIngestion(
     source: GroupedSourceIngestionSource,
   ): Promise<GroupedSourceIngestionSourceResult>;
-  recordSourceFailure(
-    source: GroupedSourceIngestionSource,
-    issue: GroupedSourceIngestionIssue,
-  ): Promise<number>;
+  recordSourceFailure: GroupedSourceFailureRecorder;
 }
 
 // Batch summary mapping
@@ -115,6 +122,27 @@ async function recordUnexpectedFailure(
   } catch {
     return 0;
   }
+}
+
+// Error-log adapter
+// Grouped ingestion only knows that one source failed. This adapter translates
+// that local issue into the Story 2.8 ingestion error logger without exposing
+// Prisma or raw thrown errors to the orchestration loop.
+export function createGroupedSourceFailureRecorder(
+  dependencies: RecordIngestionErrorDependencies,
+): GroupedSourceFailureRecorder {
+  return async (source, issue) => {
+    await recordIngestionError(
+      {
+        source,
+        errorType: issue.code,
+        message: `Grouped source ingestion error ${issue.code} on ${issue.field}.`,
+      },
+      dependencies,
+    );
+
+    return 1;
+  };
 }
 
 // Sequential orchestration
