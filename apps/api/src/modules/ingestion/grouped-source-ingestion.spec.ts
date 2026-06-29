@@ -3,7 +3,9 @@ import { assert, describe, it, vi } from 'vitest';
 import {
   buildGroupedSourceIngestionResult,
   buildGroupedSourceResultFromReport,
+  createGroupedSourceIngestionDependencies,
   createGroupedSourceFailureRecorder,
+  type CreateGroupedSourceIngestionDependencies,
   GROUPED_SOURCE_INGESTION_UNSUPPORTED_TYPE_ERROR,
   GROUPED_SOURCE_INGESTION_UNEXPECTED_ERROR,
   runGroupedSourceIngestion,
@@ -45,6 +47,38 @@ const sourceResults: GroupedSourceIngestionSourceResult[] = [
     errors: [{ code: 'source.ingestionFailed', field: 'source' }],
   },
 ];
+
+function createFactoryDependencies(
+  runners: CreateGroupedSourceIngestionDependencies['runners'],
+): CreateGroupedSourceIngestionDependencies {
+  const dependencies: CreateGroupedSourceIngestionDependencies = {
+    fetchFeed: vi.fn(),
+    fetchPage: vi.fn(),
+    normalizationContext: {
+      sources: [],
+      categories: [],
+      technologies: [],
+      fallbackCategorySlug: 'trend',
+    },
+    persistence: {
+      upsertResourceDraft: vi.fn(),
+    },
+    errorLog: {
+      persistence: {
+        createIngestionError: vi.fn().mockResolvedValue({
+          ingestionErrorId: '7eb45381-6b55-4692-8d54-f5893d71441d',
+        }),
+        pruneIngestionErrorsForSource: vi.fn().mockResolvedValue(undefined),
+      },
+    },
+  };
+
+  if (runners) {
+    dependencies.runners = runners;
+  }
+
+  return dependencies;
+}
 
 describe('buildGroupedSourceIngestionResult', () => {
   it('summarizes source-level results without changing their order', () => {
@@ -473,6 +507,140 @@ describe('runGroupedSourceIngestion', () => {
         },
       ],
     });
+  });
+});
+
+describe('createGroupedSourceIngestionDependencies', () => {
+  it('routes rss_atom sources to the RSS Atom runner', async () => {
+    const sourceResult = sourceResults[0];
+    assert.ok(sourceResult);
+    const source = sourceResult.source;
+    const runRssAtomSource = vi.fn().mockResolvedValue({
+      adapter: {
+        entries: [{ errors: [] }],
+      },
+      ingestion: {
+        createdCount: 1,
+        updatedCount: 0,
+        skippedCount: 0,
+        items: [{ errors: [] }],
+      },
+    } satisfies GroupedSourceIngestionReport);
+    const runPublicMetadataSource = vi.fn();
+    const dependencies = createFactoryDependencies({
+      runRssAtomSource,
+      runPublicMetadataSource,
+    });
+    const groupedDependencies =
+      createGroupedSourceIngestionDependencies(dependencies);
+
+    const result = await groupedDependencies.runSourceIngestion(source);
+
+    assert.strictEqual(groupedDependencies.isSourceTypeSupported?.(source), true);
+    assert.strictEqual(runRssAtomSource.mock.calls.length, 1);
+    assert.strictEqual(runRssAtomSource.mock.calls[0]?.[0], source);
+    assert.strictEqual(runPublicMetadataSource.mock.calls.length, 0);
+    assert.deepEqual(result, {
+      source,
+      status: 'succeeded',
+      createdCount: 1,
+      updatedCount: 0,
+      skippedCount: 0,
+      recordedErrorCount: 0,
+      errors: [],
+    });
+  });
+
+  it('routes public_metadata sources to the public metadata runner', async () => {
+    const source: GroupedSourceIngestionSource = {
+      id: 'a6e01d7d-bba3-45d6-972b-7e69729c78c7',
+      name: 'Node.js Blog',
+      url: 'https://nodejs.org/en/blog',
+      type: 'public_metadata',
+      status: 'active',
+    };
+    const runRssAtomSource = vi.fn();
+    const runPublicMetadataSource = vi.fn().mockResolvedValue({
+      adapter: {
+        entries: [{ errors: [] }],
+      },
+      ingestion: {
+        createdCount: 0,
+        updatedCount: 1,
+        skippedCount: 0,
+        items: [{ errors: [] }],
+      },
+    } satisfies GroupedSourceIngestionReport);
+    const dependencies = createFactoryDependencies({
+      runRssAtomSource,
+      runPublicMetadataSource,
+    });
+    const groupedDependencies =
+      createGroupedSourceIngestionDependencies(dependencies);
+
+    const result = await groupedDependencies.runSourceIngestion(source);
+
+    assert.strictEqual(groupedDependencies.isSourceTypeSupported?.(source), true);
+    assert.strictEqual(runRssAtomSource.mock.calls.length, 0);
+    assert.strictEqual(runPublicMetadataSource.mock.calls.length, 1);
+    assert.strictEqual(runPublicMetadataSource.mock.calls[0]?.[0], source);
+    assert.deepEqual(result, {
+      source,
+      status: 'succeeded',
+      createdCount: 0,
+      updatedCount: 1,
+      skippedCount: 0,
+      recordedErrorCount: 0,
+      errors: [],
+    });
+  });
+
+  it('records report errors through the ingestion error logger', async () => {
+    const sourceResult = sourceResults[0];
+    assert.ok(sourceResult);
+    const source = sourceResult.source;
+    const runRssAtomSource = vi.fn().mockResolvedValue({
+      adapter: {
+        entries: [
+          {
+            errors: [{ code: 'feed.fetchFailed', field: 'fetchFeed' }],
+          },
+        ],
+      },
+      ingestion: {
+        createdCount: 0,
+        updatedCount: 0,
+        skippedCount: 0,
+        items: [{ errors: [] }],
+      },
+    } satisfies GroupedSourceIngestionReport);
+    const dependencies = createFactoryDependencies({
+      runRssAtomSource,
+    });
+    const groupedDependencies =
+      createGroupedSourceIngestionDependencies(dependencies);
+
+    const result = await groupedDependencies.runSourceIngestion(source);
+
+    assert.strictEqual(result.status, 'failed');
+    assert.strictEqual(result.recordedErrorCount, 1);
+    assert.deepEqual(result.errors, [
+      { code: 'feed.fetchFailed', field: 'fetchFeed' },
+    ]);
+    assert.deepEqual(
+      vi.mocked(
+        dependencies.errorLog.persistence.createIngestionError,
+      ).mock.calls.map(([entry]) => ({
+        errorType: entry.errorType,
+        message: entry.message,
+      })),
+      [
+        {
+          errorType: 'feed.fetchFailed',
+          message: 'RSS/Atom adapter error feed.fetchFailed on fetchFeed.',
+        },
+      ],
+    );
   });
 });
 

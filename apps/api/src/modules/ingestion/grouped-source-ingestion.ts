@@ -1,12 +1,22 @@
 import {
   recordIngestionError,
+  recordIngestionReportErrors,
   type RecordIngestionErrorDependencies,
 } from './ingestion-error-log.js';
+import {
+  PUBLIC_METADATA_SOURCE_TYPE,
+  runPublicMetadataIngestion,
+  type PublicMetadataIngestionRunDependencies,
+} from './public-metadata-ingestion-adapter.js';
+import {
+  RSS_ATOM_SOURCE_TYPE,
+  runRssAtomIngestion,
+  type RssAtomIngestionRunDependencies,
+} from './rss-atom-ingestion-adapter.js';
 
 // Grouped source ingestion contract
-// This file describes the result shape before the orchestration logic exists.
-// The next increments will use these types to run sources one by one without
-// letting a single failure stop the whole ingestion batch.
+// This file keeps the batch contract, adapter routing and source-by-source
+// orchestration together so callers get one stable entry point for grouped runs.
 export const GROUPED_SOURCE_INGESTION_UNSUPPORTED_TYPE_ERROR =
   'source.typeUnsupported';
 export const GROUPED_SOURCE_INGESTION_UNEXPECTED_ERROR =
@@ -84,10 +94,21 @@ export interface GroupedSourceIngestionDependencies {
   isSourceTypeSupported?(source: GroupedSourceIngestionSource): boolean;
 }
 
+export interface GroupedSourceIngestionRunnerOverrides {
+  runRssAtomSource?: typeof runRssAtomIngestion;
+  runPublicMetadataSource?: typeof runPublicMetadataIngestion;
+}
+
+export interface CreateGroupedSourceIngestionDependencies
+  extends RssAtomIngestionRunDependencies,
+    PublicMetadataIngestionRunDependencies {
+  errorLog: RecordIngestionErrorDependencies;
+  runners?: GroupedSourceIngestionRunnerOverrides;
+}
+
 // Batch summary mapping
-// The orchestrator will own the loop later. This helper only turns per-source
-// facts into stable counters, which makes the reporting rule easy to test
-// before external adapters or Prisma are involved.
+// This helper only turns per-source facts into stable counters, which keeps the
+// reporting rule easy to test before external adapters or Prisma are involved.
 export function buildGroupedSourceIngestionResult(
   sourceResults: readonly GroupedSourceIngestionSourceResult[],
 ): GroupedSourceIngestionResult {
@@ -203,6 +224,62 @@ export function createGroupedSourceFailureRecorder(
     );
 
     return 1;
+  };
+}
+
+export function isGroupedSourceTypeSupported(
+  source: GroupedSourceIngestionSource,
+): boolean {
+  return (
+    source.type === RSS_ATOM_SOURCE_TYPE ||
+    source.type === PUBLIC_METADATA_SOURCE_TYPE
+  );
+}
+
+// Adapter routing
+// This factory is the narrow bridge to real source adapters. Tests can override
+// the two runners, while production callers get the existing RSS/Atom and
+// public metadata pipelines by default.
+export function createGroupedSourceIngestionDependencies(
+  dependencies: CreateGroupedSourceIngestionDependencies,
+): GroupedSourceIngestionDependencies {
+  const runRssAtomSource =
+    dependencies.runners?.runRssAtomSource ?? runRssAtomIngestion;
+  const runPublicMetadataSource =
+    dependencies.runners?.runPublicMetadataSource ?? runPublicMetadataIngestion;
+
+  return {
+    isSourceTypeSupported: isGroupedSourceTypeSupported,
+    recordSourceFailure: createGroupedSourceFailureRecorder(
+      dependencies.errorLog,
+    ),
+    async runSourceIngestion(source) {
+      const report =
+        source.type === RSS_ATOM_SOURCE_TYPE
+          ? await runRssAtomSource(source, dependencies)
+          : await runPublicMetadataSource(source, dependencies);
+      const recordedErrorCount = await recordIngestionReportErrors(
+        {
+          source,
+          report,
+          adapterLabel:
+            source.type === RSS_ATOM_SOURCE_TYPE
+              ? 'RSS/Atom adapter'
+              : 'Public metadata adapter',
+          ingestionLabel:
+            source.type === RSS_ATOM_SOURCE_TYPE
+              ? 'RSS/Atom ingestion'
+              : 'Public metadata ingestion',
+        },
+        dependencies.errorLog,
+      );
+
+      return buildGroupedSourceResultFromReport(
+        source,
+        report,
+        recordedErrorCount,
+      );
+    },
   };
 }
 
