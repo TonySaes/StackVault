@@ -81,6 +81,7 @@ export interface GroupedSourceIngestionDependencies {
     source: GroupedSourceIngestionSource,
   ): Promise<GroupedSourceIngestionSourceResult>;
   recordSourceFailure: GroupedSourceFailureRecorder;
+  isSourceTypeSupported?(source: GroupedSourceIngestionSource): boolean;
 }
 
 // Batch summary mapping
@@ -142,12 +143,18 @@ function buildUnexpectedFailureIssue(): GroupedSourceIngestionIssue {
   };
 }
 
-function buildUnexpectedFailureSourceResult(
+function buildUnsupportedTypeIssue(): GroupedSourceIngestionIssue {
+  return {
+    code: GROUPED_SOURCE_INGESTION_UNSUPPORTED_TYPE_ERROR,
+    field: 'type',
+  };
+}
+
+function buildFailureSourceResult(
   source: GroupedSourceIngestionSource,
+  issue: GroupedSourceIngestionIssue,
   recordedErrorCount: number,
 ): GroupedSourceIngestionSourceResult {
-  const issue = buildUnexpectedFailureIssue();
-
   return {
     source,
     status: 'failed',
@@ -159,18 +166,23 @@ function buildUnexpectedFailureSourceResult(
   };
 }
 
-async function recordUnexpectedFailure(
+async function recordSourceFailureSafely(
   source: GroupedSourceIngestionSource,
+  issue: GroupedSourceIngestionIssue,
   dependencies: GroupedSourceIngestionDependencies,
 ): Promise<number> {
   try {
-    return await dependencies.recordSourceFailure(
-      source,
-      buildUnexpectedFailureIssue(),
-    );
+    return await dependencies.recordSourceFailure(source, issue);
   } catch {
     return 0;
   }
+}
+
+function isSourceSupported(
+  source: GroupedSourceIngestionSource,
+  dependencies: GroupedSourceIngestionDependencies,
+): boolean {
+  return dependencies.isSourceTypeSupported?.(source) ?? true;
 }
 
 // Error-log adapter
@@ -205,16 +217,33 @@ export async function runGroupedSourceIngestion(
   const sourceResults: GroupedSourceIngestionSourceResult[] = [];
 
   for (const source of sources) {
-    try {
-      sourceResults.push(await dependencies.runSourceIngestion(source));
-    } catch {
-      const recordedErrorCount = await recordUnexpectedFailure(
+    if (!isSourceSupported(source, dependencies)) {
+      const issue = buildUnsupportedTypeIssue();
+      const recordedErrorCount = await recordSourceFailureSafely(
         source,
+        issue,
         dependencies,
       );
 
       sourceResults.push(
-        buildUnexpectedFailureSourceResult(source, recordedErrorCount),
+        buildFailureSourceResult(source, issue, recordedErrorCount),
+      );
+
+      continue;
+    }
+
+    try {
+      sourceResults.push(await dependencies.runSourceIngestion(source));
+    } catch {
+      const issue = buildUnexpectedFailureIssue();
+      const recordedErrorCount = await recordSourceFailureSafely(
+        source,
+        issue,
+        dependencies,
+      );
+
+      sourceResults.push(
+        buildFailureSourceResult(source, issue, recordedErrorCount),
       );
     }
   }

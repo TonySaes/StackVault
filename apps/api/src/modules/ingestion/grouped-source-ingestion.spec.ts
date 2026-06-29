@@ -4,6 +4,7 @@ import {
   buildGroupedSourceIngestionResult,
   buildGroupedSourceResultFromReport,
   createGroupedSourceFailureRecorder,
+  GROUPED_SOURCE_INGESTION_UNSUPPORTED_TYPE_ERROR,
   GROUPED_SOURCE_INGESTION_UNEXPECTED_ERROR,
   runGroupedSourceIngestion,
   type GroupedSourceIngestionReport,
@@ -386,6 +387,92 @@ describe('runGroupedSourceIngestion', () => {
     });
     assert.strictEqual(result.succeededSourceCount, 1);
     assert.strictEqual(result.failedSourceCount, 1);
+  });
+
+  it('isolates an unsupported source type without calling source ingestion', async () => {
+    const unsupportedSource: GroupedSourceIngestionSource = {
+      id: 'd342f4f3-21e5-48dd-b1ab-a062d953558d',
+      name: 'Unsupported Source',
+      url: 'https://example.invalid/source',
+      type: 'unknown_type',
+      status: 'active',
+    };
+    const nodeSource: GroupedSourceIngestionSource = {
+      id: 'a6e01d7d-bba3-45d6-972b-7e69729c78c7',
+      name: 'Node.js Blog',
+      url: 'https://nodejs.org/en/blog',
+      type: 'public_metadata',
+      status: 'active',
+    };
+    const runSourceIngestion = vi.fn().mockResolvedValue({
+      source: nodeSource,
+      status: 'succeeded',
+      createdCount: 1,
+      updatedCount: 0,
+      skippedCount: 0,
+      recordedErrorCount: 0,
+      errors: [],
+    } satisfies GroupedSourceIngestionSourceResult);
+    const recordSourceFailure = vi.fn().mockResolvedValue(1);
+    const isSourceTypeSupported = vi
+      .fn()
+      .mockImplementation(
+        (source: GroupedSourceIngestionSource) =>
+          source.type === 'rss_atom' || source.type === 'public_metadata',
+      );
+
+    const result = await runGroupedSourceIngestion(
+      [unsupportedSource, nodeSource],
+      {
+        runSourceIngestion,
+        recordSourceFailure,
+        isSourceTypeSupported,
+      },
+    );
+
+    assert.deepEqual(
+      vi.mocked(runSourceIngestion).mock.calls.map(([source]) => source.name),
+      ['Node.js Blog'],
+    );
+    assert.deepEqual(vi.mocked(recordSourceFailure).mock.calls, [
+      [
+        unsupportedSource,
+        {
+          code: GROUPED_SOURCE_INGESTION_UNSUPPORTED_TYPE_ERROR,
+          field: 'type',
+        },
+      ],
+    ]);
+    assert.deepEqual(result, {
+      processedSourceCount: 2,
+      succeededSourceCount: 1,
+      failedSourceCount: 1,
+      sources: [
+        {
+          source: unsupportedSource,
+          status: 'failed',
+          createdCount: 0,
+          updatedCount: 0,
+          skippedCount: 0,
+          recordedErrorCount: 1,
+          errors: [
+            {
+              code: GROUPED_SOURCE_INGESTION_UNSUPPORTED_TYPE_ERROR,
+              field: 'type',
+            },
+          ],
+        },
+        {
+          source: nodeSource,
+          status: 'succeeded',
+          createdCount: 1,
+          updatedCount: 0,
+          skippedCount: 0,
+          recordedErrorCount: 0,
+          errors: [],
+        },
+      ],
+    });
   });
 });
 
