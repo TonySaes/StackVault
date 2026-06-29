@@ -1,7 +1,9 @@
-import { assert, describe, it } from 'vitest';
+import { assert, describe, it, vi } from 'vitest';
 
 import {
   buildGroupedSourceIngestionResult,
+  runGroupedSourceIngestion,
+  type GroupedSourceIngestionSource,
   type GroupedSourceIngestionSourceResult,
 } from './grouped-source-ingestion.js';
 
@@ -58,6 +60,77 @@ describe('buildGroupedSourceIngestionResult', () => {
       succeededSourceCount: 0,
       failedSourceCount: 0,
       sources: [],
+    });
+  });
+});
+
+describe('runGroupedSourceIngestion', () => {
+  it('runs source ingestion sequentially and returns the grouped summary', async () => {
+    const reactSource: GroupedSourceIngestionSource = {
+      id: 'c91049ab-4b8a-4142-a8fb-b9a8183bff4d',
+      name: 'React Blog',
+      url: 'https://react.dev/blog',
+      type: 'rss_atom',
+      status: 'active',
+    };
+    const nodeSource: GroupedSourceIngestionSource = {
+      id: 'a6e01d7d-bba3-45d6-972b-7e69729c78c7',
+      name: 'Node.js Blog',
+      url: 'https://nodejs.org/en/blog',
+      type: 'public_metadata',
+      status: 'active',
+    };
+    const sources: GroupedSourceIngestionSource[] = [reactSource, nodeSource];
+    const runOrder: string[] = [];
+    const runSourceIngestion = vi
+      .fn()
+      .mockImplementation(async (source: GroupedSourceIngestionSource) => {
+        runOrder.push(source.name);
+
+        return {
+          source,
+          status: 'succeeded',
+          createdCount: 1,
+          updatedCount: 0,
+          skippedCount: 0,
+          recordedErrorCount: 0,
+          errors: [],
+        } satisfies GroupedSourceIngestionSourceResult;
+      });
+
+    const result = await runGroupedSourceIngestion(sources, {
+      runSourceIngestion,
+    });
+
+    assert.deepEqual(runOrder, ['React Blog', 'Node.js Blog']);
+    assert.deepEqual(
+      vi.mocked(runSourceIngestion).mock.calls.map(([source]) => source.name),
+      ['React Blog', 'Node.js Blog'],
+    );
+    assert.deepEqual(result, {
+      processedSourceCount: 2,
+      succeededSourceCount: 2,
+      failedSourceCount: 0,
+      sources: [
+        {
+          source: reactSource,
+          status: 'succeeded',
+          createdCount: 1,
+          updatedCount: 0,
+          skippedCount: 0,
+          recordedErrorCount: 0,
+          errors: [],
+        },
+        {
+          source: nodeSource,
+          status: 'succeeded',
+          createdCount: 1,
+          updatedCount: 0,
+          skippedCount: 0,
+          recordedErrorCount: 0,
+          errors: [],
+        },
+      ],
     });
   });
 });

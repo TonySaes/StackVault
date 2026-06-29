@@ -49,6 +49,12 @@ export interface GroupedSourceIngestionResult {
   sources: GroupedSourceIngestionSourceResult[];
 }
 
+export interface GroupedSourceIngestionDependencies {
+  runSourceIngestion(
+    source: GroupedSourceIngestionSource,
+  ): Promise<GroupedSourceIngestionSourceResult>;
+}
+
 // Batch summary mapping
 // The orchestrator will own the loop later. This helper only turns per-source
 // facts into stable counters, which makes the reporting rule easy to test
@@ -67,4 +73,21 @@ export function buildGroupedSourceIngestionResult(
       .length,
     sources,
   };
+}
+
+// Sequential orchestration
+// This first version models the happy path only: each source is awaited before
+// the next one starts. The per-source isolation `try/catch` will be added in the
+// next micro-increment so the diff stays focused and easy to review.
+export async function runGroupedSourceIngestion(
+  sources: readonly GroupedSourceIngestionSource[],
+  dependencies: GroupedSourceIngestionDependencies,
+): Promise<GroupedSourceIngestionResult> {
+  const sourceResults: GroupedSourceIngestionSourceResult[] = [];
+
+  for (const source of sources) {
+    sourceResults.push(await dependencies.runSourceIngestion(source));
+  }
+
+  return buildGroupedSourceIngestionResult(sourceResults);
 }
