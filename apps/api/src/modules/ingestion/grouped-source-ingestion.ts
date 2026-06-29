@@ -48,3 +48,23 @@ export interface GroupedSourceIngestionResult {
   failedSourceCount: number;
   sources: GroupedSourceIngestionSourceResult[];
 }
+
+// Batch summary mapping
+// The orchestrator will own the loop later. This helper only turns per-source
+// facts into stable counters, which makes the reporting rule easy to test
+// before external adapters or Prisma are involved.
+export function buildGroupedSourceIngestionResult(
+  sourceResults: readonly GroupedSourceIngestionSourceResult[],
+): GroupedSourceIngestionResult {
+  const sources = [...sourceResults];
+
+  return {
+    processedSourceCount: sources.length,
+    succeededSourceCount: sources.filter(
+      (source) => source.status === 'succeeded',
+    ).length,
+    failedSourceCount: sources.filter((source) => source.status === 'failed')
+      .length,
+    sources,
+  };
+}
