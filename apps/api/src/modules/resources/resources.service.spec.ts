@@ -3,11 +3,13 @@ import { assert, describe, expect, it } from 'vitest';
 import { NotFoundException } from '@nestjs/common';
 
 import { PrismaService } from '../../database/prisma.service.js';
+import { PUBLIC_RESOURCE_LINK_STATUSES } from './link-status.js';
 import { ResourcesService } from './resources.service.js';
 
 interface PrismaResourceFindManyArgs {
   orderBy: unknown;
   select: {
+    linkStatus?: boolean;
     source?: {
       select?: Record<string, boolean>;
     };
@@ -18,6 +20,7 @@ interface PrismaResourceFindManyArgs {
 
 interface PrismaResourceFindFirstArgs {
   select: {
+    linkStatus?: boolean;
     source?: {
       select?: Record<string, boolean>;
     };
@@ -89,6 +92,17 @@ const sourceToVerifyResourceRecord = {
     status: 'to_verify',
   },
 };
+
+// Link status fixtures
+// The database still stores a string, so these records exercise the public
+// mapper instead of relying only on TypeScript's compile-time union.
+function buildResourceWithLinkStatus(linkStatus: string) {
+  return {
+    ...publicResourceRecord,
+    id: `resource-${linkStatus}`,
+    linkStatus,
+  };
+}
 
 function createPrismaMock(
   resources: unknown[],
@@ -185,6 +199,40 @@ describe('ResourcesService', () => {
     assert.strictEqual('updatedAt' in result.items[0]!.source, false);
   });
 
+  it('exposes every supported link status in the public list contract', async () => {
+    const resources = PUBLIC_RESOURCE_LINK_STATUSES.map((linkStatus) =>
+      buildResourceWithLinkStatus(linkStatus),
+    );
+    const { prisma, calls } = createPrismaMock(resources, resources.length);
+    const service = new ResourcesService(prisma);
+
+    const result = await service.listResources({
+      page: 1,
+      pageSize: 20,
+    });
+
+    assert.strictEqual(calls[0]?.select.linkStatus, true);
+    assert.deepEqual(
+      result.items.map((resource) => resource.linkStatus),
+      [...PUBLIC_RESOURCE_LINK_STATUSES],
+    );
+  });
+
+  it('normalizes an unsupported database link status in the public list contract', async () => {
+    const { prisma } = createPrismaMock(
+      [buildResourceWithLinkStatus('provider-specific-value')],
+      1,
+    );
+    const service = new ResourcesService(prisma);
+
+    const result = await service.listResources({
+      page: 1,
+      pageSize: 20,
+    });
+
+    assert.strictEqual(result.items[0]?.linkStatus, 'to_verify');
+  });
+
   it('preserves an inactive source status in the public list contract', async () => {
     const { prisma } = createPrismaMock([inactiveSourceResourceRecord], 1);
     const service = new ResourcesService(prisma);
@@ -225,8 +273,10 @@ describe('ResourcesService', () => {
       id: 'resource-id',
       lifecycleStatus: 'active',
     });
+    assert.strictEqual(detailCalls[0]?.select.linkStatus, true);
     assert.deepEqual(detailCalls[0]?.select.source?.select, publicSourceSelect);
     assert.strictEqual(result.id, 'resource-id');
+    assert.strictEqual(result.linkStatus, 'unknown');
     assert.deepEqual(result.technologies, [
       {
         id: 'technology-id',

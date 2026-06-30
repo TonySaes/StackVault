@@ -5,6 +5,10 @@ import {
   ListResourcesQueryDto,
   normalizeListResourcesQuery,
 } from './dto/list-resources-query.dto.js';
+import {
+  normalizePublicLinkStatus,
+  type PublicResourceLinkStatus,
+} from './link-status.js';
 
 interface PublicResourceSource {
   id: string;
@@ -37,7 +41,7 @@ export interface PublicResourceItem {
   publishedAt: Date | null;
   detectedAt: Date;
   lifecycleStatus: string;
-  linkStatus: string;
+  linkStatus: PublicResourceLinkStatus;
   source: PublicResourceSource;
   category: PublicResourceCategory;
   technologies: PublicResourceTechnology[];
@@ -197,7 +201,8 @@ export class ResourcesService {
   // Public API mapper
   // Prisma exposes technologies through the join relation `technologyLinks`.
   // The HTTP contract exposes a direct `technologies` array so callers do not
-  // need to know the database join-table shape.
+  // need to know the database join-table shape. Link status is normalized here
+  // because Prisma still returns a free string from the database.
   private mapPublicResource(resource: {
     id: string;
     title: string;
@@ -221,7 +226,7 @@ export class ResourcesService {
       publishedAt: resource.publishedAt,
       detectedAt: resource.detectedAt,
       lifecycleStatus: resource.lifecycleStatus,
-      linkStatus: resource.linkStatus,
+      linkStatus: normalizePublicLinkStatus(resource.linkStatus),
       source: resource.source,
       category: resource.category,
       technologies: resource.technologyLinks.map(
