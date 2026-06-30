@@ -15,7 +15,8 @@
     "prisma:seed": "tsx prisma/seed.ts",
     "ingestion:demo": "tsx src/modules/ingestion/run-demo-ingestion.ts",
     "ingestion:rss-atom": "tsx src/modules/ingestion/run-rss-atom-ingestion.ts",
-    "ingestion:public-metadata": "tsx src/modules/ingestion/run-public-metadata-ingestion.ts"
+    "ingestion:public-metadata": "tsx src/modules/ingestion/run-public-metadata-ingestion.ts",
+    "link-check:run": "tsx src/modules/link-checks/run-link-check.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.1.21",
