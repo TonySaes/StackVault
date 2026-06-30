@@ -81,6 +81,19 @@ describe('normalizeIngestionItem', () => {
     }
   });
 
+  it('keeps the link status unknown until a dedicated link check job verifies it', () => {
+    const result = normalizeIngestionItem(
+      validIngestionItem,
+      normalizationContext,
+    );
+
+    assert.strictEqual(result.success, true);
+
+    if (result.success) {
+      assert.strictEqual(result.draft.linkStatus, 'unknown');
+    }
+  });
+
   it('uses the explicit fallback category when the candidate category is unknown', () => {
     const result = normalizeIngestionItem(
       {
