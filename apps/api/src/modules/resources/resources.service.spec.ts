@@ -288,6 +288,19 @@ describe('ResourcesService', () => {
     assert.strictEqual('technologyLinks' in result, false);
   });
 
+  it('normalizes an unsupported database link status in the public detail contract', async () => {
+    const { prisma } = createPrismaMock(
+      [],
+      0,
+      buildResourceWithLinkStatus('provider-specific-value'),
+    );
+    const service = new ResourcesService(prisma);
+
+    const result = await service.getResourceById('resource-id');
+
+    assert.strictEqual(result.linkStatus, 'to_verify');
+  });
+
   it('throws a not found exception when the public resource does not exist', async () => {
     const { prisma } = createPrismaMock([], 0, null);
     const service = new ResourcesService(prisma);
