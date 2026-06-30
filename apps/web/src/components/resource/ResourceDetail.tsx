@@ -24,7 +24,7 @@ function formatTechnologies(resource: PublicResource) {
   return resource.technologies.map((technology) => technology.name).join(', ');
 }
 
-function formatLinkStatus(linkStatus: string) {
+function formatLinkStatus(linkStatus: PublicResource['linkStatus']) {
   switch (linkStatus) {
     case 'active':
       return 'Lien actif';
@@ -34,6 +34,8 @@ function formatLinkStatus(linkStatus: string) {
       return 'Redirection';
     case 'unknown':
       return 'Lien non verifie';
+    case 'to_verify':
+      return 'Lien a verifier';
     default:
       return 'Lien a verifier';
   }

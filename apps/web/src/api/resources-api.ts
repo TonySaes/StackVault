@@ -26,6 +26,17 @@ export interface PublicResourceTechnology {
   status: string;
 }
 
+// Public link status contract
+// The API normalizes database strings before exposing resources. The frontend
+// mirrors that bounded contract so cards and detail pages cannot silently add an
+// unsupported link state.
+export type PublicResourceLinkStatus =
+  | 'active'
+  | 'unavailable'
+  | 'redirect'
+  | 'unknown'
+  | 'to_verify';
+
 export interface PublicResource {
   id: string;
   title: string;
@@ -35,7 +46,7 @@ export interface PublicResource {
   publishedAt: string | null;
   detectedAt: string;
   lifecycleStatus: string;
-  linkStatus: string;
+  linkStatus: PublicResourceLinkStatus;
   source: PublicResourceSource;
   category: PublicResourceCategory;
   technologies: PublicResourceTechnology[];

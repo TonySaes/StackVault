@@ -84,6 +84,11 @@ function getLinkStatusBadge(resource: PublicResource) {
         label: 'Lien non verifie',
         tone: 'neutral' as const,
       };
+    case 'to_verify':
+      return {
+        label: 'Lien a verifier',
+        tone: 'warning' as const,
+      };
     default:
       return {
         label: 'Lien a verifier',
