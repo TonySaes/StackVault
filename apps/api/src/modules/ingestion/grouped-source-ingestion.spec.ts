@@ -508,6 +508,92 @@ describe('runGroupedSourceIngestion', () => {
       ],
     });
   });
+
+  it('isolates a source type guard failure and continues with the next source', async () => {
+    const brokenSource: GroupedSourceIngestionSource = {
+      id: 'd342f4f3-21e5-48dd-b1ab-a062d953558d',
+      name: 'Broken Source Guard',
+      url: 'https://example.invalid/source',
+      type: 'rss_atom',
+      status: 'active',
+    };
+    const nodeSource: GroupedSourceIngestionSource = {
+      id: 'a6e01d7d-bba3-45d6-972b-7e69729c78c7',
+      name: 'Node.js Blog',
+      url: 'https://nodejs.org/en/blog',
+      type: 'public_metadata',
+      status: 'active',
+    };
+    const runSourceIngestion = vi.fn().mockResolvedValue({
+      source: nodeSource,
+      status: 'succeeded',
+      createdCount: 1,
+      updatedCount: 0,
+      skippedCount: 0,
+      recordedErrorCount: 0,
+      errors: [],
+    } satisfies GroupedSourceIngestionSourceResult);
+    const recordSourceFailure = vi.fn().mockResolvedValue(1);
+    const isSourceTypeSupported = vi
+      .fn()
+      .mockImplementationOnce(() => {
+        throw new Error('guard unavailable');
+      })
+      .mockReturnValueOnce(true);
+
+    const result = await runGroupedSourceIngestion(
+      [brokenSource, nodeSource],
+      {
+        runSourceIngestion,
+        recordSourceFailure,
+        isSourceTypeSupported,
+      },
+    );
+
+    assert.deepEqual(
+      vi.mocked(runSourceIngestion).mock.calls.map(([source]) => source.name),
+      ['Node.js Blog'],
+    );
+    assert.deepEqual(vi.mocked(recordSourceFailure).mock.calls, [
+      [
+        brokenSource,
+        {
+          code: GROUPED_SOURCE_INGESTION_UNSUPPORTED_TYPE_ERROR,
+          field: 'type',
+        },
+      ],
+    ]);
+    assert.deepEqual(result, {
+      processedSourceCount: 2,
+      succeededSourceCount: 1,
+      failedSourceCount: 1,
+      sources: [
+        {
+          source: brokenSource,
+          status: 'failed',
+          createdCount: 0,
+          updatedCount: 0,
+          skippedCount: 0,
+          recordedErrorCount: 1,
+          errors: [
+            {
+              code: GROUPED_SOURCE_INGESTION_UNSUPPORTED_TYPE_ERROR,
+              field: 'type',
+            },
+          ],
+        },
+        {
+          source: nodeSource,
+          status: 'succeeded',
+          createdCount: 1,
+          updatedCount: 0,
+          skippedCount: 0,
+          recordedErrorCount: 0,
+          errors: [],
+        },
+      ],
+    });
+  });
 });
 
 describe('createGroupedSourceIngestionDependencies', () => {
@@ -641,6 +727,85 @@ describe('createGroupedSourceIngestionDependencies', () => {
         },
       ],
     );
+  });
+
+  it('keeps report errors when report error logging fails', async () => {
+    const sourceResult = sourceResults[0];
+    assert.ok(sourceResult);
+    const source = sourceResult.source;
+    const runRssAtomSource = vi.fn().mockResolvedValue({
+      adapter: {
+        entries: [
+          {
+            errors: [{ code: 'feed.fetchFailed', field: 'fetchFeed' }],
+          },
+        ],
+      },
+      ingestion: {
+        createdCount: 0,
+        updatedCount: 0,
+        skippedCount: 0,
+        items: [{ errors: [] }],
+      },
+    } satisfies GroupedSourceIngestionReport);
+    const dependencies = createFactoryDependencies({
+      runRssAtomSource,
+    });
+    vi.mocked(
+      dependencies.errorLog.persistence.createIngestionError,
+    ).mockRejectedValueOnce(new Error('database unavailable'));
+    const groupedDependencies =
+      createGroupedSourceIngestionDependencies(dependencies);
+
+    const result = await groupedDependencies.runSourceIngestion(source);
+
+    assert.deepEqual(result, {
+      source,
+      status: 'failed',
+      createdCount: 0,
+      updatedCount: 0,
+      skippedCount: 0,
+      recordedErrorCount: 0,
+      errors: [{ code: 'feed.fetchFailed', field: 'fetchFeed' }],
+    });
+  });
+
+  it('rejects direct factory runner calls for unsupported source types', async () => {
+    const unsupportedSource: GroupedSourceIngestionSource = {
+      id: 'd342f4f3-21e5-48dd-b1ab-a062d953558d',
+      name: 'Unsupported Source',
+      url: 'https://example.invalid/source',
+      type: 'unknown_type',
+      status: 'active',
+    };
+    const runRssAtomSource = vi.fn();
+    const runPublicMetadataSource = vi.fn();
+    const dependencies = createFactoryDependencies({
+      runRssAtomSource,
+      runPublicMetadataSource,
+    });
+    const groupedDependencies =
+      createGroupedSourceIngestionDependencies(dependencies);
+
+    const result =
+      await groupedDependencies.runSourceIngestion(unsupportedSource);
+
+    assert.strictEqual(runRssAtomSource.mock.calls.length, 0);
+    assert.strictEqual(runPublicMetadataSource.mock.calls.length, 0);
+    assert.deepEqual(result, {
+      source: unsupportedSource,
+      status: 'failed',
+      createdCount: 0,
+      updatedCount: 0,
+      skippedCount: 0,
+      recordedErrorCount: 1,
+      errors: [
+        {
+          code: GROUPED_SOURCE_INGESTION_UNSUPPORTED_TYPE_ERROR,
+          field: 'type',
+        },
+      ],
+    });
   });
 });
 

@@ -1,6 +1,7 @@
 import {
   recordIngestionError,
   recordIngestionReportErrors,
+  type RecordIngestionReportErrorsInput,
   type RecordIngestionErrorDependencies,
 } from './ingestion-error-log.js';
 import {
@@ -190,20 +191,24 @@ function buildFailureSourceResult(
 async function recordSourceFailureSafely(
   source: GroupedSourceIngestionSource,
   issue: GroupedSourceIngestionIssue,
-  dependencies: GroupedSourceIngestionDependencies,
+  recordSourceFailure: GroupedSourceFailureRecorder,
 ): Promise<number> {
   try {
-    return await dependencies.recordSourceFailure(source, issue);
+    return await recordSourceFailure(source, issue);
   } catch {
     return 0;
   }
 }
 
-function isSourceSupported(
+function isSourceSupportedSafely(
   source: GroupedSourceIngestionSource,
   dependencies: GroupedSourceIngestionDependencies,
 ): boolean {
-  return dependencies.isSourceTypeSupported?.(source) ?? true;
+  try {
+    return dependencies.isSourceTypeSupported?.(source) ?? true;
+  } catch {
+    return false;
+  }
 }
 
 // Error-log adapter
@@ -227,6 +232,17 @@ export function createGroupedSourceFailureRecorder(
   };
 }
 
+async function recordIngestionReportErrorsSafely(
+  input: RecordIngestionReportErrorsInput,
+  dependencies: RecordIngestionErrorDependencies,
+): Promise<number> {
+  try {
+    return await recordIngestionReportErrors(input, dependencies);
+  } catch {
+    return 0;
+  }
+}
+
 export function isGroupedSourceTypeSupported(
   source: GroupedSourceIngestionSource,
 ): boolean {
@@ -247,29 +263,39 @@ export function createGroupedSourceIngestionDependencies(
     dependencies.runners?.runRssAtomSource ?? runRssAtomIngestion;
   const runPublicMetadataSource =
     dependencies.runners?.runPublicMetadataSource ?? runPublicMetadataIngestion;
+  const recordSourceFailure = createGroupedSourceFailureRecorder(
+    dependencies.errorLog,
+  );
 
   return {
     isSourceTypeSupported: isGroupedSourceTypeSupported,
-    recordSourceFailure: createGroupedSourceFailureRecorder(
-      dependencies.errorLog,
-    ),
+    recordSourceFailure,
     async runSourceIngestion(source) {
-      const report =
-        source.type === RSS_ATOM_SOURCE_TYPE
-          ? await runRssAtomSource(source, dependencies)
-          : await runPublicMetadataSource(source, dependencies);
-      const recordedErrorCount = await recordIngestionReportErrors(
+      if (!isGroupedSourceTypeSupported(source)) {
+        const issue = buildUnsupportedTypeIssue();
+        const recordedErrorCount = await recordSourceFailureSafely(
+          source,
+          issue,
+          recordSourceFailure,
+        );
+
+        return buildFailureSourceResult(source, issue, recordedErrorCount);
+      }
+
+      const isRssAtomSource = source.type === RSS_ATOM_SOURCE_TYPE;
+      const report = isRssAtomSource
+        ? await runRssAtomSource(source, dependencies)
+        : await runPublicMetadataSource(source, dependencies);
+      const recordedErrorCount = await recordIngestionReportErrorsSafely(
         {
           source,
           report,
-          adapterLabel:
-            source.type === RSS_ATOM_SOURCE_TYPE
-              ? 'RSS/Atom adapter'
-              : 'Public metadata adapter',
-          ingestionLabel:
-            source.type === RSS_ATOM_SOURCE_TYPE
-              ? 'RSS/Atom ingestion'
-              : 'Public metadata ingestion',
+          adapterLabel: isRssAtomSource
+            ? 'RSS/Atom adapter'
+            : 'Public metadata adapter',
+          ingestionLabel: isRssAtomSource
+            ? 'RSS/Atom ingestion'
+            : 'Public metadata ingestion',
         },
         dependencies.errorLog,
       );
@@ -294,12 +320,12 @@ export async function runGroupedSourceIngestion(
   const sourceResults: GroupedSourceIngestionSourceResult[] = [];
 
   for (const source of sources) {
-    if (!isSourceSupported(source, dependencies)) {
+    if (!isSourceSupportedSafely(source, dependencies)) {
       const issue = buildUnsupportedTypeIssue();
       const recordedErrorCount = await recordSourceFailureSafely(
         source,
         issue,
-        dependencies,
+        dependencies.recordSourceFailure,
       );
 
       sourceResults.push(
@@ -316,7 +342,7 @@ export async function runGroupedSourceIngestion(
       const recordedErrorCount = await recordSourceFailureSafely(
         source,
         issue,
-        dependencies,
+        dependencies.recordSourceFailure,
       );
 
       sourceResults.push(
